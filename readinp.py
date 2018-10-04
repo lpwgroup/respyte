@@ -11,6 +11,7 @@ import numpy as np
 import pylab
 import re
 import yaml
+from warnings import warn
 
 from collections import OrderedDict, namedtuple, Counter
 # For AMBER force field:)
@@ -39,7 +40,11 @@ class Input:
         self.charge_equal = {}
         self.nmols = []
         self.restraintinfo = {}
-        self.charge = None
+        # self.charge = None # need to remove, if charge is given, will
+        #                    # consider whole molecule as one residue with the given net charge
+        self.grid_gen = False
+        self.gridinfo = None
+
 
     def readinput(self, inputFile):
 
@@ -51,10 +56,10 @@ class Input:
         else:
             cheminformatics = None
 
-        """ Read total charge (mainly for small organic molecule)"""
-        if 'charge' in inp:
-            charge = inp['charge']
-            self.charge = charge
+        # """ Read total charge (mainly for small organic molecule)"""
+        # if 'charge' in inp:
+        #     charge = inp['charge']
+        #     self.charge = charge
 
         """ Read set_charge for charge freezing """
         if 'set_charge' in inp:
@@ -66,17 +71,27 @@ class Input:
         From net_set, define resChargeDict.
         For small molecule, resname is like mol1, mol2, ... and atomname is the same with element name:)
         """
+        # print('before editing:', ResidueChargeDict)
+        resChargeDict = copy.deepcopy(ResidueChargeDict)
         if 'net_set'  in inp:
             net_set = inp['net_set']
-        else:
-            net_set = {}
-        resChargeDict = copy.deepcopy(ResidueChargeDict)
-        for i in net_set:
-            res = net_set[i]['resname']
-            setcharge = net_set[i]['rescharge']
-            resChargeDict[res] = setcharge
-
-        """atomnames and residue names whose charges are set to be equal:)"""
+            resChargeDict.update(net_set)
+        # else:
+        #     net_set = {}
+        # resChargeDict = copy.deepcopy(ResidueChargeDict)
+        # for i in net_set:
+        #     res = net_set[i]['resname']
+        #     setcharge = net_set[i]['rescharge']
+        #     resChargeDict[res] = setcharge
+        # print('after applying net_Set:(check the crazy glu charge)')
+        # print()
+        # print(resChargeDict)
+        if 'charge' in inp:
+            resChargeDict.update(inp['charge'])
+        # print('after applying charge:(check if they included mol1,2):')
+        # print()
+        # print(resChargeDict)
+        """"atomnames and residue names whose charges are set to be equal:)"""
         if 'charge_equal' in inp:
             charge_equal_inp = inp['charge_equal']
         else:
@@ -87,17 +102,7 @@ class Input:
             resname = charge_equal_inp[i]['resname']
             newcharge_equal.append([atomname, resname])
         charge_equal = newcharge_equal
-
-        # for molecule in inp['molecules']:
-        #     molN = molecule
-        #     if inp['molecules'][molecule] == None:
-        #         a.addPdbFile('input/molecules/%s/%s.pdb' % (molN, molN))
-        #         a.addEspf('input/molecules/%s/%s.espf' % (molN, molN))
-        #     else:
-        #         for config in inp['molecules'][molecule]:
-        #             confN = config
-        #             a.addPdbFile('input/molecules/%s/%s/%s_%s.pdb' % (molN, confN, molN, confN))
-        #             a.addEspf('input/molecules/%s/%s/%s_%s.espf' % (molN, confN, molN, confN))
+        """ Check how many molecules and how many conformers are set to be fitted """
         nmols = []
         for molecule in inp['molecules']:
             if inp['molecules'][molecule] is None:
@@ -107,39 +112,35 @@ class Input:
             nmols.append(nmol)
 
         """ Read charge fit model (Model2, Model3, 2-stg-fit)"""
-        restraint = inp['restraint']
-        if restraint == 'model2':
-            aval = inp['a']
-            restraintinfo = { 'restraint' : restraint,
-                              'a'         : aval}
-        if restraint == 'model3':
-            aval = inp['a']
-            bval = inp['b']
-            restraintinfo = { 'restraint' : restraint,
-                              'a'         : aval,
-                              'b'         : bval}
+        restraintinfo = inp['restraint']
 
-        if restraint =='2-stg-fit':
-            a1val = inp['a1']
-            a2val = inp['a2']
-            bval = inp['b']
-            restraintinfo = { 'restraint' : restraint,
-                              'a1'        : a1val,
-                              'a2'        : a2val,
-                              'b'         : bval}
+        if inp['grid_gen'] :
+            if inp['grid_gen'] is 'Y':
+                grid_gen = True
+                if inp['grid_setting'] :
+                    gridinfo = inp['grid_setting']
+                else:
+                    # if there's no information provided, use msk grids as a default///
+                    gridinfo = {'type'   : 'msk',
+                                #'prefix' : 'msk',
+                                'radii'  : 'bondi'}
+            if inp['grid_gen'] is 'N':
+                grid_gen = False
+                gridinfo = None
 
         self.cheminformatics = cheminformatics
-        self.set_charge = set_charge
-        self.resChargeDict = resChargeDict
-        self.charge_equal = charge_equal
-        self.nmols = nmols
-        self.restraintinfo = restraintinfo
-
+        self.set_charge      = set_charge
+        self.resChargeDict   = resChargeDict
+        self.charge_equal    = charge_equal
+        self.nmols           = nmols
+        self.restraintinfo   = restraintinfo
+        self.gridinfo        = gridinfo
+        self.grid_gen        = grid_gen
 def main():
     inp = Input()
-    inp.readinput('input/respyt.yml')
-    print(inp.cheminformatics)
-    print(inp.charge_equal)
-    print(inp.restraintinfo)
+    inp.readinput('input/respyte.yml')
+    # print(inp.cheminformatics)
+    # print(inp.charge_equal)
+    # print(inp.restraintinfo)
 if __name__ == "__main__":
     main()

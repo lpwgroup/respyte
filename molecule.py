@@ -11,7 +11,7 @@ import numpy as np
 import pylab
 import re
 from collections import OrderedDict, namedtuple, Counter
-
+from warnings import warn
 try:
     import openeye.oechem as oechem
 except ImportError:
@@ -25,20 +25,22 @@ from readinp import Input
 
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
-# For AMBER force field
-aminoAcidUnits = ['ACE', 'NHE', 'NME', # Capping groups
-                  'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'CYX', 'GLU', 'GLN', 'GLY', 'HID', 'HIE', 'HIP',
-                  'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
+# Set default residue charges for amino acids (AMBER force field)
+aminoAcidUnits = ['ACE', 'NME', 'NHE',
+                  'ALA', 'ARG', 'ASN', 'ASP', 'ASH', # ASH: ASP protonated
+                  'CYS', 'CYM', 'CYX' , # CYM: deprotonated(-1?), CYX: S-S crosslinking
+                  'GLU', 'GLH', 'GLN', 'GLY',
+                  'HID', 'HIE', 'HIP', # HIP: protonated
+                  'ILE', 'LEU', 'LYS', 'LYN', # LYN: neutral
+                  'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 ResidueCharge = []
-
 for residue in aminoAcidUnits:
     if residue == 'ARG' or residue == 'LYS' or residue == 'HIP':
         ResidueCharge.append(1)
-    elif residue == 'ASP' or residue == 'GLU':
+    elif residue == 'ASP' or residue == 'GLU' or residue == 'CYM':
         ResidueCharge.append(-1)
     else:
         ResidueCharge.append(0)
-
 ResidueChargeDict = OrderedDict()
 for idx, i in enumerate(aminoAcidUnits):
     ResidueChargeDict[i] = ResidueCharge[idx]
@@ -132,63 +134,62 @@ class Molecule_HJ:
             del lst[i]
         return lst
 
-    def set_equivGroup(self, charge_equal, atomid, atomidinfo):
-
-        new_charge_equals = []
-        for atmnms, resnms in charge_equal:
-            if len(atmnms) > 1:
-                pass # we are neglecting the case when atomname is given as a list for now. Be back later
-            else:
-                if resnms is "*":
-                    new_charge_equal = []
-                    for atmid, info in atomidinfo.items():
-                        if any(i['atomname'] == atmnms for i in info):
-                            new_charge_equal.append(atmid)
-                else:
-                    if len(resnms) < 2:
-                        pass
-                    else:
-                        new_charge_equal = []
-                        for resnm in resnms:
-                            val = {'resname' : resnm, 'atomname' : atmnms}
-                            for atmid, info in atomidinfo.items():
-                                if val in info:
-                                    new_charge_equal.append(int(atmid))
-                new_charge_equals.append(new_charge_equal)
-        listofsetequal = []
-        for charge_equal in new_charge_equals:
-            setequal = []
-            for idx, j in enumerate(atomid):
-                if j in charge_equal:
-                    setequal.append(idx)
-            listofsetequal.append(setequal)
-        # Then find identical atoms from list of atom IDs. ????????????????????????????????
-        unique_atomid = list(set(atomid))
-        needtoremove = []
-        for idx, i in enumerate(unique_atomid):
-            if any(i in lst for lst in new_charge_equals):
-                needtoremove.append(idx)
-        needtoremove.sort(reverse  = True)
-        for idx in needtoremove:
-            del unique_atomid[idx]
-
-        listofsameatoms = []
-        for i in unique_atomid:
-            sameatoms = []
-            for idx, j in enumerate(atomid):
-                if j == i:
-                    sameatoms.append(idx)
-            listofsameatoms.append(sameatoms)
-
-        listofsameatoms = self.removeSingleElemList(listofsameatoms)
-
-        equivGroup = []
-        for i in listofsetequal:
-            equivGroup.append(i)
-        for i in listofsameatoms:
-            equivGroup.append(i)
-
-        return equivGroup  # considered ID and charge_equal
+    # def set_equivGroup(self, charge_equal, atomid, atomidinfo):
+    #
+    #     new_charge_equals = []
+    #     for atmnms, resnms in charge_equal:
+    #         if len(atmnms) > 1:
+    #             pass # we are neglecting the case when atomname is given as a list for now. Be back later
+    #         else:
+    #             if resnms is "*":
+    #                 new_charge_equal = []
+    #                 for atmid, info in atomidinfo.items():
+    #                     if any(i['atomname'] == atmnms for i in info):
+    #                         new_charge_equal.append(atmid)
+    #             else:
+    #                 if len(resnms) < 2:
+    #                     pass
+    #                 else:
+    #                     new_charge_equal = []
+    #                     for resnm in resnms:
+    #                         val = {'resname' : resnm, 'atomname' : atmnms}
+    #                         for atmid, info in atomidinfo.items():
+    #                             if val in info:
+    #                                 new_charge_equal.append(int(atmid))
+    #             new_charge_equals.append(new_charge_equal)
+    #     listofsetequal = []
+    #     for charge_equal in new_charge_equals:
+    #         setequal = []
+    #         for idx, j in enumerate(atomid):
+    #             if j in charge_equal:
+    #                 setequal.append(idx)
+    #         listofsetequal.append(setequal)
+    #     unique_atomid = list(set(atomid))
+    #     needtoremove = []
+    #     for idx, i in enumerate(unique_atomid):
+    #         if any(i in lst for lst in new_charge_equals):
+    #             needtoremove.append(idx)
+    #     needtoremove.sort(reverse  = True)
+    #     for idx in needtoremove:
+    #         del unique_atomid[idx]
+    #
+    #     listofsameatoms = []
+    #     for i in unique_atomid:
+    #         sameatoms = []
+    #         for idx, j in enumerate(atomid):
+    #             if j == i:
+    #                 sameatoms.append(idx)
+    #         listofsameatoms.append(sameatoms)
+    #
+    #     listofsameatoms = self.removeSingleElemList(listofsameatoms)
+    #
+    #     equivGroup = []
+    #     for i in listofsetequal:
+    #         equivGroup.append(i)
+    #     for i in listofsameatoms:
+    #         equivGroup.append(i)
+    #
+    #     return equivGroup  # considered ID and charge_equal
 
     def set_listofpolar(self, listofpolar):
         """Manually assign polar atoms"""
@@ -196,8 +197,9 @@ class Molecule_HJ:
         self.listofpolars.append(listofpolar)
 
     def set_charge(self, resChargeDict, atomid, atomidinfo, resnumber):
-        # output should be like [][[indices], netcharge], ...]
-
+        """
+        Output should be like [[[indices], resname, netcharge], ...]
+        """
         idxof1statm = [0]
         resname = atomidinfo[atomid[0]][0]['resname']
         resnmof1statm = [resname]
@@ -208,48 +210,98 @@ class Molecule_HJ:
             else:
                 check.append(resn)
                 idxof1statm.append(idx)
-                resnmof1statm.append(atomidinfo[atomid[idx]][0]['resname'])
+                resnmof1statm.append(atomidinfo[atomid[idx+2]][0]['resname'])
         chargeinfo = []
         idxof1statm.append(len(atomid))
+        # print(idxof1statm,resnmof1statm)
+        # input()
         for idx, resnm in enumerate(resnmof1statm):
             charge = resChargeDict[resnm]
             lstofidx  =list(range(idxof1statm[idx], idxof1statm[idx+1]))
-            chargeinf = [lstofidx, charge]
+            chargeinf = [lstofidx, resnm, charge]
             chargeinfo.append(chargeinf)
         return chargeinfo
 
-    def addXyzFile(self, xyzFile):
+    def convert_charge_equal(self, charge_equal, atomidinfo):
+        """
+        Convert charge_equal which assigns equivalent set of atoms into list of equivalent atom ID.
+
+        """
+        new_charge_equals = []
+        for atmnms, resnms in charge_equal:
+            # Case 1, when single or multiple atomnames are set to be equal in any residues.
+            if resnms is '*':
+                new_charge_equal = [] # store atom ids set to be equivalent.
+                for atmnm in atmnms:
+                    for atmid, info in self.atomidinfo.items():
+
+                        if any(x['atomname'] == atmnm for x in info):
+                            new_charge_equal.append(atmid)
+
+            # Case 2, when single or multiple atomnames in specific residues are set to be equivalent.
+            elif len(atmnms) > 1 or len(resnms) > 1:
+                new_charge_equal = []
+                for i in atmnms:
+                    for j in resnms:
+                        val = {'resname' : j, 'atomname' : i}
+                        for atmid, info in self.atomidinfo.items():
+                            if val in info:
+                                new_charge_equal.append(atmid)
+            else:
+                pass
+            new_charge_equal = list(set(new_charge_equal))
+            new_charge_equals.append(new_charge_equal)
+        new_charge_equals = self.removeSingleElemList(new_charge_equals)
+        new_charge_equals.sort()
+        return new_charge_equals
+
+    def getidxof1statm(self, listofresid, listofresname):
+        idxof1statm = [0]
+        resnameof1statm = [listofresname[0]]
+        check = [listofresid[0]]
+        for idx, resid in enumerate(listofresid):
+            if resid == check[-1]:
+                pass
+            else:
+                check.append(resid)
+                idxof1statm.append(idx)
+                resnameof1statm.append(listofresname[idx])
+        return idxof1statm, resnameof1statm
+
+    def addXyzFile(self, xyzFile, resname = None):
         xyzs = []
-        xyz  = []
-        elem = []
         firstline = True
         firstframe = True
         if len(self.atomidinfo) == 0:
-            atomID = 1
+            atmID = 1
         else:
-            atomID = max(list(self.atomidinfo.keys()))+1
-        atomid = []
-        atomidinfo = {}
+            atmID = max(list(self.atomidinfo.keys()))+1
+        # Read xyzFile
         with open(xyzFile) as xyzfile:
             for line in xyzfile:
                 ls = line.strip().expandtabs()
                 if firstline == True and ls.isdigit() == True:
                     nAtom = int(ls)
                     firstline = False
+                    xyz  = []
+                    elem = []
+                    atomid = []
+                    lstofatomname = []
+                    lstofresname = []
                 elif re.match("[0-9]+( +[-+]?([0-9]*\.)?[0-9]+){4}$" or "[0-9]+( +[-+]?([0-9]*\.)?[0-9]+){3}$", ls):
                     sline = ls.split()
                     xyz.append([float(i) for i in sline[1:4]])
                     if firstframe is True:
-                        lstofatomname = []
-                        lstofresname = []
                         atomicNum = int(ls[0])
                         elem.append(atomicNum)
                         atomname = list(AtomicMass.keys())[atomicNum-1]
-                        resname = 'Organic'
+                        if resname is None:
+                            number = len(self.elems)+1
+                            resname = 'mol%d' %(number)
                         lstofatomname.append(atomname)
                         lstofresname.append(resname)
                         val = { 'resname' : resname, 'atomname' : atomname}
-                        atomidinfo[atmID] = val
+                        self.atomidinfo[atmID] = val
                         atomid.append(atmID)
                         atmID += 1
                 elif re.match("^[A-Z][A-Za-z]?( +[-+]?([0-9]*\.)?[0-9]+){3}$", ls):
@@ -259,9 +311,13 @@ class Molecule_HJ:
                         atomicNum = list(AtomicMass.keys()).index(ls[0])+1
                         elem.append(atomicNum)
                         atomname = ls[0]
-                        untiname = 'Organic'
+                        if resname is None:
+                            number = len(self.elems)+1
+                            resname = 'mol%d' %(number)
+                        lstofatomname.append(atomname)
+                        lstofresname.append(resname)
                         val = { 'resname' : resname, 'atomname' : atomname}
-                        atomidinfo[atmID] = val
+                        self.atomidinfo[atmID] = val
                         atomid.append(atmID)
                         atmID += 1
                 elif firstline == False and ls.isdigit() == True  and int(ls) == nAtom:
@@ -278,17 +334,38 @@ class Molecule_HJ:
                 raise RuntimeError('The xyz file contains some format error.')
         print('%d conformers have been read from %s.' % (len(xyzs),xyzFile))
 
+        if self.inp is not None:
+            equiv_ids = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+        else:
+            equiv_ids = []
+        newatomid = atomid.copy()
+        newnewatomidinfo = self.atomidinfo.copy() # self.atomidinfo or just atomidinfo?
+        for equiv_id in equiv_ids:
+            newid = equiv_id[0]
+            for i in equiv_id[1:]:
+                newatomid = [newid if x == i else x for x in newatomid]
+                for j in self.atomidinfo[i]:
+                    newnewatomidinfo[newid].append(j) # need to remove old one
+                del newnewatomidinfo[i]
+
+        self.atomids.append(newatomid)
+        self.atomidinfo = newnewatomidinfo
         self.elems.append(elem)
-        self.nmols.append(len(xyzs))
-        for xyz in xyzs:
-            self.xyzs.append(xyz)
-        self.atomids.append(atomid)
-        for i in atomidinfo:
-            self.atomidinfo.append(i)
-        resnumber= list(np.ones((len(xyz))))
+        resnumber = list(np.ones((len(elem))))
         self.resnumbers.append(resnumber)
         self.resnames.append(lstofresname)
         self.atomnames.append(lstofatomname)
+        self.nmols.append(len(xyzs))
+        for xyz in xyzs:
+            self.xyzs.append(xyz)
+        resnumber= list(np.ones((len(xyz))))
+        indices = list(range(len(elem)))
+        if self.inp is not None:
+            charge = self.inp.resChargeDict[resname]
+        else:
+            charge = None
+        chargeinfo = [[indices, resname, charge]]
+        self.listofchargeinfo.append(chargeinfo)
 
     def addPdbFiles(self, *pdbFiles):
         xyzs = []
@@ -317,23 +394,58 @@ class Molecule_HJ:
 
                 for res, atom in zip(resname, atomname):
                     val = {'resname' : res, 'atomname' : atom}
-                    if any(val in v for v in list(self.atomidinfo.values())):
+                    #print(list(self.atomidinfo.values()))
+                    #input()
+                    if len(self.atomidinfo) == 0:
+                        #print('Here?')
+                        atomid.append(atmid)
+                        self.atomidinfo[atmid] = [val]
+                        atmid += 1
+                        #print(list(self.atomidinfo.values()))
+                    elif any(val in v for v in list(self.atomidinfo.values())): # doesnt work...
                         for k ,v in self.atomidinfo.items():
                             if val in v:
                                 atomid.append(int(k))
                     else:
                         atomid.append(atmid)
-                        self.atomidinfo[atmid] = val
+                        self.atomidinfo[atmid] = [val]
                         atmid += 1
 
-        self.elems.append(newelem)
+            # Using 'charge_equal' in input sett
+            if self.inp is not None:
+                equiv_ids = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+            else:
+                equiv_ids = []
+            # and modify atomid and atomidinfo so that they(equivalent atoms) can have the same id?
+            # No cant do this. maybe not. can one key possess more than one value?
+            newatomid = atomid.copy()
+            newnewatomidinfo = self.atomidinfo.copy()
+            for equiv_id in equiv_ids:
+                newid = equiv_id[0]
+                for i in equiv_id[1:]:
+                    newatomid = [newid if x == i else x for x in newatomid]
+                    for j in self.atomidinfo[i]:
+                        newnewatomidinfo[newid].append(j)
+                    del newnewatomidinfo[i]
+
+            self.atomids.append(newatomid)
+            self.atomidinfo = newnewatomidinfo
+            self.elems.append(newelem)
+            self.resnames.append(resname)
+            self.atomnames.append(atomname)
+            self.resnumbers.append(resnumber)
         self.nmols.append(len(xyzs))
         for xyz in xyzs:
             self.xyzs.append(xyz)
-        self.atomids.append(atomid)
-        self.resnumbers.append(resnumber)
-        self.resnames.append(resname)
-        self.atomnames.append(atomname)
+        if self.inp is not None:
+            chargeinfo = self.set_charge(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+        else:
+            indices = list(range(len(elem)))
+            charge = None
+            number = len(self.elems)+1
+            resname = 'mol%d' %(number)
+            chargeinfo = [[indices, resname, charge]]
+        self.listofchargeinfo.append(chargeinfo)
 
     def addEspf(self, *espfFiles):
         for espfFile in espfFiles:
@@ -365,12 +477,11 @@ class Molecule_HJ:
             self.addEfValues(efval)
 
 class Molecule_OEMol(Molecule_HJ):
-    def addXyzFile(self, xyzFile):
+    def addXyzFile(self, xyzFile,resname = None):
     #     # need to consider the case when user wants to pass multiple conformers as separated xyz files.
     #     if len(xyzFiles) > 1:
     #         # add files into one??
     #         for xyzFile in xyzFiles:
-
         firstline = True
         startofstructure = []
         with open(xyzFile) as xyzfile:
@@ -408,7 +519,6 @@ class Molecule_OEMol(Molecule_HJ):
                 symmetryClass = []
                 listofpolar = []
                 atomid = []
-                #atomidinfo = {}
                 lstofresname = []
                 lstofatomname = []
                 if len(self.atomidinfo) == 0:
@@ -419,8 +529,9 @@ class Molecule_OEMol(Molecule_HJ):
                     elem.append(atom.GetAtomicNum())
                     symmetryClass.append(atom.GetSymmetryClass())
                     atomname = list(AtomicMass.keys())[atom.GetAtomicNum()-1]
-                    number = len(self.elems)+1
-                    resname = 'Organic%d' %(number)
+                    if resname is None:
+                        number = len(self.elems)+1
+                        resname = 'mol%d' %(number)
                     lstofresname.append(resname)
                     lstofatomname.append(atomname)
 
@@ -440,56 +551,16 @@ class Molecule_OEMol(Molecule_HJ):
                 unique_sym = set(symmetryClass)
                 equiv_sym = [[i for i, v in enumerate(symmetryClass) if v == value] for value in unique_sym]
                 equiv_sym = self.removeSingleElemList(equiv_sym)
-                # print(equiv_sym)
-                #equiv_id
+
                 equiv_ids = []
                 for i in equiv_sym:
                     newlst = list(set(atomid[j] for j in i))
                     equiv_ids.append(newlst)
-                # print(equiv_ids)
-                # new_charge_equals
-                new_charge_equals = []
-                # print(self.inp.charge_equal)
-                for atmnms , resnms in self.inp.charge_equal:
-                    if len(atmnms) > 1:
-                        if resnms is '*':
-                            new_charge_equal = []
-                            for i in atmnms:
-                                for atmid, info in self.atomidinfo.items():
-                                    if any(x['atomname'] == i for x in info):
-                                        new_charge_equal.append(atmid)
-                            new_charge_equal = list(set(new_charge_equal))
-                        elif len(resnms) > 1:
-                            new_charge_equal = []
-                            for i in atmnms:
-                                for j in resnms:
-                                    val = {'resname' : j, 'atomname' : i}
-                                    for atmid, info in self.atomidinfo.items():
-                                        if val in info:
-                                            new_charge_equal.append(atmid)
 
-                            new_charge_equal = list(set(new_charge_equal))
-
-                        new_charge_equals.append(new_charge_equal)
-
-                    else:
-                        if resnms is "*":
-                            new_charge_equal = []
-                            for atmid, info in self.atomidinfo.items():
-                                if any(i['atomname'] == atmnms for i in info):
-                                    new_charge_equal.append(atmid)
-                        else:
-                            if len(charge_equal[atmnm]) < 2:
-                                pass
-                            else:
-                                new_charge_equal = []
-                                for resnm in resnms:
-                                    val = {'resname' : resnm, 'atomname' : atmnms}
-                                    for atmid, info in self.atomidinfo.items():
-                                        if val in info:
-                                            new_charge_equal.append(int(atmid))
-                        new_charge_equals.append(new_charge_equal)
-                new_charge_equals = self.removeSingleElemList(new_charge_equals)
+                if self.inp is not None:
+                    new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                else:
+                    new_charge_equals = []
                 # equiv_id_comb
                 equiv_ids_comb = []
                 for i in equiv_ids:
@@ -533,15 +604,18 @@ class Molecule_OEMol(Molecule_HJ):
                 self.listofpolars.append(listofpolar)
                 self.resnames.append(lstofresname)
                 self.atomnames.append(lstofatomname)
-
+        print('%d conformers have been read from %s.' % (len(xyzs),xyzFile))
         for xyz in xyzs:
             self.xyzs.append(xyz)
         self.nmols.append(len(xyzs))
         resnumber = list(np.ones((len(elem))))
         self.resnumbers.append(resnumber)
         indices = list(range(len(elem)))
-        charge = self.inp.charge
-        chargeinfo = [[indices, charge]]
+        if self.inp is not None:
+            charge = self.inp.resChargeDict[resname]
+        else:
+            charge = None
+        chargeinfo = [[indices, resname, charge]]
         self.listofchargeinfo.append(chargeinfo)
 
     def addPdbFiles(self, *pdbFiles):
@@ -594,6 +668,7 @@ class Molecule_OEMol(Molecule_HJ):
                         atomid.append(atmid)
                         self.atomidinfo[atmid] = [val]
                         atmid += 1
+
                 symmetryClass = []
                 listofpolar = []
                 for atom in oemol.GetAtoms():
@@ -606,19 +681,8 @@ class Molecule_OEMol(Molecule_HJ):
                             elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
                                 listofpolar.append(atom2.GetIdx())
                 listofpolar = sorted(set(listofpolar))
-                def getidxof1statm(listofresid, listofresname):
-                    idxof1statm = [0]
-                    resnameof1statm = [listofresname[0]]
-                    check = [listofresid[0]]
-                    for idx, resid in enumerate(listofresid):
-                        if resid == check[-1]:
-                            pass
-                        else:
-                            check.append(resid)
-                            idxof1statm.append(idx)
-                            resnameof1statm.append(listofresname[idx])
-                    return idxof1statm, resnameof1statm
-                idxof1statm, resnameof1statm = getidxof1statm(resnumber, resname)
+
+                idxof1statm, resnameof1statm = self.getidxof1statm(resnumber, resname)
                 unique_resid = set(resnameof1statm)
                 sameresid = [[i for i, v in enumerate(resnameof1statm) if v == value] for value in unique_resid]
                 sameresid.sort()
@@ -653,49 +717,10 @@ class Molecule_OEMol(Molecule_HJ):
                 for i in needtoremove:
                     del equiv_ids[i]
 
-                # Using 'charge_equal' in input sett
-                new_charge_equals = []
-                for atmnms , resnms in self.inp.charge_equal:
-                    if len(atmnms) > 1:
-                        if resnms is '*':
-                            new_charge_equal = []
-                            for i in atmnms:
-                                for atmid, info in self.atomidinfo.items():
-                                    if any(x['atomname'] == i for x in info):
-                                        new_charge_equal.append(atmid)
-                            new_charge_equal = list(set(new_charge_equal))
-                        elif len(resnms) > 1:
-                            new_charge_equal = []
-                            for i in atmnms:
-                                for j in resnms:
-                                    val = {'resname' : j, 'atomname' : i}
-                                    for atmid, info in self.atomidinfo.items():
-                                        if val in info:
-                                            new_charge_equal.append(atmid)
-
-                            new_charge_equal = list(set(new_charge_equal))
-
-                        new_charge_equals.append(new_charge_equal)
-
-                    else:
-                        if resnms is "*":
-                            new_charge_equal = []
-                            for atmid, info in self.atomidinfo.items():
-                                if any(i['atomname'] == atmnms for i in info):
-                                    new_charge_equal.append(atmid)
-                        else:
-                            if len(charge_equal[atmnm]) < 2:
-                                pass
-                            else:
-                                new_charge_equal = []
-                                for resnm in resnms:
-                                    val = {'resname' : resnm, 'atomname' : atmnms}
-                                    for atmid, info in self.atomidinfo.items():
-                                        if val in info:
-                                            new_charge_equal.append(int(atmid))
-                        new_charge_equals.append(new_charge_equal)
-
-                new_charge_equals = self.removeSingleElemList(new_charge_equals)
+                if self.inp is not None:
+                    new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                else:
+                    new_charge_equals = []
                 equiv_ids_comb = []
                 for i in equiv_ids:
                     equiv_ids_comb.append(i)
@@ -729,60 +754,70 @@ class Molecule_OEMol(Molecule_HJ):
         self.nmols.append(len(xyzs))
         for xyz in xyzs:
             self.xyzs.append(xyz)
-        chargeinfo = self. set_charge(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+        if self.inp is not None:
+            chargeinfo = self.set_charge(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+        else:
+            indices = list(range(len(elem)))
+            charge = None
+            number = len(self.elems)+1
+            resname = 'mol%d' % (number)
+            chargeinfo = [[indices, resname, charge]]
         self.listofchargeinfo.append(chargeinfo)
 def main():
 
     inp = Input()
-    inp.readinput('input/respyt.yml')
+    inp.readinput('input/respyte.yml')
 
     if inp.cheminformatics =='openeye':
         molecule = Molecule_OEMol()
     else:
         molecule = Molecule_HJ()
     molecule.addInp(inp)
-    # Add coordinates
-    for idx, i in enumerate(inp.nmols): # need to trim a bit more:
-        molN = 'mol%d' % (idx+1)
-        wkd = 'input/molecules/%s/' %(molN)
-        coordfilepath = []
-        espffilepath = []
-        # if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)) is False:
-        #     print('Please combine xyz files into one xyz file with %s.xyz as its name.' % (molN))
-        #     break
-        if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
-            coordpath = wkd + '%s.xyz' % (molN)
-            ftype = 'xyz'
-            coordfilepath.append(coordpath)
-            for j in range(i):
-                confN = 'conf%d' % (j+1)
-                path = wkd + '%s/' % (confN)
-                espfpath = path + '%s_%s.espf' %(molN, confN)
-                espffilepath.append(espfpath)
-        else:
-            for j in range(i):
-                confN = 'conf%d' % (j+1)
-                path = wkd + '%s/' % (confN)
-
-                for fnm in os.listdir(path):
-                    if fnm.endswith('.xyz'):
-                        coordpath = path + '%s_%s.xyz' % (molN, confN)
-                        ftype = 'xyz'
-                        espfpath = path + '%s_%s.espf' %(molN, confN)
-
-                    elif fnm.endswith('.pdb'):
-                        coordpath = path + '%s_%s.pdb' % (molN, confN)
-                        ftype = 'pdb'
-                        espfpath = path + '%s_%s.espf' %(molN, confN)
+    if inp.grid_gen is False:
+        # Add coordinates
+        for idx, i in enumerate(inp.nmols): # need to trim a bit more:
+            molN = 'mol%d' % (idx+1)
+            wkd = 'input/molecules/%s/' %(molN)
+            coordfilepath = []
+            espffilepath = []
+            # if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)) is False:
+            #     print('Please combine xyz files into one xyz file with %s.xyz as its name.' % (molN))
+            #     break
+            if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
+                coordpath = wkd + '%s.xyz' % (molN)
+                ftype = 'xyz'
                 coordfilepath.append(coordpath)
-                espffilepath.append(espfpath)
-        if ftype is 'xyz':
-            print(coordfilepath)
-            molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
-        elif ftype is 'pdb':
-            molecule.addPdbFiles(*coordfilepath)
-        molecule.addEspf(*espffilepath)
+                for j in range(i):
+                    confN = 'conf%d' % (j+1)
+                    path = wkd + '%s/' % (confN)
+                    espfpath = path + '%s_%s.espf' %(molN, confN)
+                    espffilepath.append(espfpath)
+            else:
+                for j in range(i):
+                    confN = 'conf%d' % (j+1)
+                    path = wkd + '%s/' % (confN)
 
+                    for fnm in os.listdir(path):
+                        if fnm.endswith('.xyz'):
+                            coordpath = path + '%s_%s.xyz' % (molN, confN)
+                            ftype = 'xyz'
+                            espfpath = path + '%s_%s.espf' %(molN, confN)
+
+                        elif fnm.endswith('.pdb'):
+                            coordpath = path + '%s_%s.pdb' % (molN, confN)
+                            ftype = 'pdb'
+                            espfpath = path + '%s_%s.espf' %(molN, confN)
+                    coordfilepath.append(coordpath)
+                    espffilepath.append(espfpath)
+            if ftype is 'xyz':
+                print(coordfilepath)
+                molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
+            elif ftype is 'pdb':
+                molecule.addPdbFiles(*coordfilepath)
+            molecule.addEspf(*espffilepath)
+    else:
+        print('grid generation is not implemented yet:/')
+        raise NotImplementedError
     print('elem',molecule.elems)
     print('listofchargeinfo', len(molecule.listofchargeinfo), molecule.listofchargeinfo)
     print('len(listofchargeinfo)',len(molecule.listofchargeinfo))

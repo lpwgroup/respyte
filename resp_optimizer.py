@@ -7,6 +7,7 @@ import numpy as np
 import pylab
 import re
 from collections import OrderedDict, namedtuple, Counter
+from warnings import warn
 try:
     import openeye.oechem as oechem
 except ImportError:
@@ -125,33 +126,44 @@ class RESPyt_Optimizer:
         nAtom = len(aInp)
         lastrows = []
         charges = []
-        for lstofidx, netchg in chargeinfo:
-            charges.append(netchg)
-            ApplytoCenter = [False]*nAtom
-            for idx in lstofidx:
-                ApplytoCenter[idx] = True
-            lastrow = []
-            for setIt in ApplytoCenter:
-                if setIt:
-                    lastrow.append(1.0)
-                else:
+        check = []
+        unique_resname = list(set(chargeinfo[i][1] for i,info in enumerate(chargeinfo)))
+        # print(unique_resname)
+        for lstofidx, resname, netchg in chargeinfo:
+            if resname in check:
+                pass
+            else:
+                check.append(resname)
+                charges.append(netchg)
+                ApplytoCenter = [False]*nAtom
+                for idx in lstofidx:
+                    ApplytoCenter[idx] = True
+                lastrow = []
+                for setIt in ApplytoCenter:
+                    if setIt:
+                        lastrow.append(1.0)
+                    else:
+                        lastrow.append(0.0)
+                for i in range(nAtom, nAtom+len(unique_resname)):  # Need to remove duplicates
                     lastrow.append(0.0)
-            for i in range(nAtom, nAtom+len(chargeinfo)):  # Need to remove duplicates
-                lastrow.append(0.0)
-            lastrows.append(lastrow)
+                lastrows.append(lastrow)
+        # print(list(len(lastrows[i]) for i in range(len(lastrows))))
+        # print('Here', aInp.shape)
         apot = []
         for i, row in enumerate(aInp):
             newrow = list(row)
             for lastrow in lastrows:
                 newrow.append(lastrow[i])
-            apot.append(newrow)
+            apot.append(np.array(newrow))
         for lastrow in lastrows:
-            apot.append(lastrow)
+            apot.append(np.array(lastrow))
         bpot = list(bInp)
         for netchg in charges:
             bpot.append(netchg)
         apot = np.array(apot)
         bpot = np.array(bpot)
+        # print(apot.shape)
+        # input()
         return apot, bpot
 
     def getCondensedIndices(self, nAtoms, equivGroupsInp):
@@ -292,6 +304,8 @@ class RESPyt_Optimizer:
             for i in range(size):
                 bpot_comb[loc+i] = bpot[i]
             loc += size
+        # print(apots, apot_comb[0], len(apots[0]),'+',len(apots[1]),'=', len(apot_comb))
+        # input()
         return apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb
 
     def combine_chargeinfo(self, listofchargeinfo, nAtoms):
@@ -303,11 +317,13 @@ class RESPyt_Optimizer:
         loc = 0
         newlistofchargeinfo = []
         for idx, chargeinfo in enumerate(listofchargeinfo):
-            for indices, charge in chargeinfo:
+            for indices, resname, charge in chargeinfo:
                 newindices = [i+loc for i in indices]
-                newchargeinfo = [newindices, charge]
+                newchargeinfo = [newindices, resname, charge]
                 newlistofchargeinfo.append(newchargeinfo)
             loc += nAtoms[idx]
+        # print(newlistofchargeinfo)
+        # input()
         return newlistofchargeinfo
 
     def get_nAtoms(self, nList):
@@ -354,15 +370,20 @@ class RESPyt_Optimizer:
         """
         apot_sym = copy.deepcopy(apotInp)
         bpot_sym = copy.deepcopy(bpotInp)
+
         elem_sym = copy.deepcopy(elem)
         atomid_sym = copy.deepcopy(atomid)
 
         sym = []
+        # print(equivGroupInp, len(apot_sym), apot_sym.shape)
+        # input()
         for equivlst in equivGroupInp:
             for idx, i in enumerate(equivlst):
-                if idx ==0:
+                if idx == 0:
                     a = i
                 elif idx > 0:
+                    # print(a,i)
+                    # print(len(apot_sym[a]), len(apot_sym[i]))
                     apot_sym[a,:] += apot_sym[i,:]
                     apot_sym[:,a] += apot_sym[:,i]
                     bpot_sym[a] += bpot_sym[i]
@@ -374,7 +395,8 @@ class RESPyt_Optimizer:
             apot_sym = np.delete(apot_sym, i, axis = 1)
             bpot_sym = np.delete(bpot_sym, i)
             elem_sym = np.delete(elem_sym, i)
-            atomid_sym = np.delete(atomid_sym, i)
+            atomid_sym = np.delete(atomid_sym, i)  # after forcing symmetry ,it makes singular matrix problem:/
+
         return apot_sym, bpot_sym, elem_sym, atomid_sym
 
     def apply_set_charge(self, apotInp, bpotInp, atomidInp, atomidinfo, set_charge):
@@ -469,11 +491,14 @@ class RESPyt_Optimizer:
         nAtoms = self.get_nAtoms(self.molecule.elems)
         # newlistofchareginfo : charge info with 'global indices'
         newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
+
         # Lagrange Charge Constraint on comb matrices
         apot_constrained, bpot_constrained = self.LagrangeChargeConstraint( newapot_comb, bpot_comb, newlistofchargeinfo)
 
         # Force symmetry based on the atomid
         equivGroup = self.get_equivGroup(atomid_comb)
+        # print(equivGroup)
+        # input()
         apot_sym, bpot_sym, elem_sym, atomid_sym = self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, equivGroup)
 
         # consider set_charge
@@ -668,7 +693,7 @@ class RESPyt_Optimizer:
         # cal. nonpolar charge
         nonpolarchargeinfo = []
         for idx, chargeinfo in enumerate(newlistofchargeinfo):
-            indices, charge = chargeinfo
+            indices, resname, charge = chargeinfo
             polarcharges = 0
             nonpolarindices = []
             for index, i in enumerate(indices):
@@ -676,7 +701,7 @@ class RESPyt_Optimizer:
                     polarcharges += qpot_nonpolar[i]
                 else:
                     nonpolarindices.append(listofnonpolar_comb.index(i))
-            nonpolarchargeinfo.append([nonpolarindices, charge-polarcharges])
+            nonpolarchargeinfo.append([nonpolarindices,resname, charge-polarcharges])
         # print(newlistofchargeinfo, nonpolarchargeinfo)
         # input()
 
@@ -743,78 +768,82 @@ class RESPyt_Optimizer:
 def main():
 
     inp = Input()
-    inp.readinput('input/respyt.yml')
+    inp.readinput('input/respyte.yml')
 
     if inp.cheminformatics =='openeye':
         molecule = Molecule_OEMol()
     else:
         molecule = Molecule_HJ()
     molecule.addInp(inp)
-    # Add coordinates
-    for idx, i in enumerate(inp.nmols): # need to trim a bit more:
-        molN = 'mol%d' % (idx+1)
-        wkd = 'input/molecules/%s/' %(molN)
-        coordfilepath = []
-        espffilepath = []
-        # if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)) is False:
-        #     print('Please combine xyz files into one xyz file with %s.xyz as its name.' % (molN))
-        #     break
-        if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
-            coordpath = wkd + '%s.xyz' % (molN)
-            ftype = 'xyz'
-            coordfilepath.append(coordpath)
-            for j in range(i):
-                confN = 'conf%d' % (j+1)
-                path = wkd + '%s/' % (confN)
-                espfpath = path + '%s_%s.espf' %(molN, confN)
-                espffilepath.append(espfpath)
-        else:
-            for j in range(i):
-                confN = 'conf%d' % (j+1)
-                path = wkd + '%s/' % (confN)
-
-                for fnm in os.listdir(path):
-                    if fnm.endswith('.xyz'):
-                        coordpath = path + '%s_%s.xyz' % (molN, confN)
-                        ftype = 'xyz'
-                        espfpath = path + '%s_%s.espf' %(molN, confN)
-
-                    elif fnm.endswith('.pdb'):
-                        coordpath = path + '%s_%s.pdb' % (molN, confN)
-                        ftype = 'pdb'
-                        espfpath = path + '%s_%s.espf' %(molN, confN)
+    if inp.grid_gen is False:
+        # Add coordinates
+        for idx, i in enumerate(inp.nmols): # need to trim a bit more:
+            molN = 'mol%d' % (idx+1)
+            wkd = 'input/molecules/%s/' %(molN)
+            coordfilepath = []
+            espffilepath = []
+            # if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)) is False:
+            #     print('Please combine xyz files into one xyz file with %s.xyz as its name.' % (molN))
+            #     break
+            if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
+                coordpath = wkd + '%s.xyz' % (molN)
+                ftype = 'xyz'
                 coordfilepath.append(coordpath)
-                espffilepath.append(espfpath)
-        if ftype is 'xyz':
-            print(coordfilepath)
-            molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
-        elif ftype is 'pdb':
-            molecule.addPdbFiles(*coordfilepath)
-        molecule.addEspf(*espffilepath)
+                for j in range(i):
+                    confN = 'conf%d' % (j+1)
+                    path = wkd + '%s/' % (confN)
+                    espfpath = path + '%s_%s.espf' %(molN, confN)
+                    espffilepath.append(espfpath)
+            else:
+                for j in range(i):
+                    confN = 'conf%d' % (j+1)
+                    path = wkd + '%s/' % (confN)
 
-    cal = RESPyt_Optimizer()
-    cal.addInp(inp)
-    cal.addMolecule(molecule)
-    if inp.restraintinfo['restraint'] == 'model2':
-        aval = inp.restraintinfo['a']
-        cal.Model2qpot(aval)
-    if inp.restraintinfo['restraint'] == 'model3':
-        aval = inp.restraintinfo['a']
-        bval = inp.restraintinfo['b']
-        cal.Model3qpot(aval, bval)
-    if inp.restraintinfo['restraint'] == '2-stg-fit':
-        a1val = inp.restraintinfo['a1']
-        a2val = inp.restraintinfo['a2']
-        bval = inp.restraintinfo['b']
-        cal.twoStageFit(a1val, a2val,bval)
+                    for fnm in os.listdir(path):
+                        if fnm.endswith('.xyz'):
+                            coordpath = path + '%s_%s.xyz' % (molN, confN)
+                            ftype = 'xyz'
+                            espfpath = path + '%s_%s.espf' %(molN, confN)
 
-    print()
-    print('    #####################################################')
-    print('    ###               Test calculations               ###')
-    print('    #####################################################')
-    cal.Model2qpot(0.005)
-    cal.Model3qpot(0.0005,0.1)
-    cal.twoStageFit(0.0005,0.001,0.1)
+                        elif fnm.endswith('.pdb'):
+                            coordpath = path + '%s_%s.pdb' % (molN, confN)
+                            ftype = 'pdb'
+                            espfpath = path + '%s_%s.espf' %(molN, confN)
+                    coordfilepath.append(coordpath)
+                    espffilepath.append(espfpath)
+            if ftype is 'xyz':
+                print(coordfilepath)
+                molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
+            elif ftype is 'pdb':
+                molecule.addPdbFiles(*coordfilepath)
+            molecule.addEspf(*espffilepath)
 
+        cal = RESPyt_Optimizer()
+        cal.addInp(inp)
+        cal.addMolecule(molecule)
+        if inp.restraintinfo:
+            if inp.restraintinfo['penalty'] == 'model2':
+                aval = inp.restraintinfo['a']
+                cal.Model2qpot(aval)
+            elif inp.restraintinfo['penalty'] == 'model3':
+                aval = inp.restraintinfo['a']
+                bval = inp.restraintinfo['b']
+                cal.Model3qpot(aval, bval)
+            elif inp.restraintinfo['penalty'] == '2-stg-fit':
+                a1val = inp.restraintinfo['a1']
+                a2val = inp.restraintinfo['a2']
+                bval = inp.restraintinfo['b']
+                cal.twoStageFit(a1val, a2val,bval)
+
+        print()
+        print('    #####################################################')
+        print('    ###               Test calculations               ###')
+        print('    #####################################################')
+        cal.Model2qpot(0.005)
+        cal.Model3qpot(0.0005,0.1)
+        cal.twoStageFit(0.0005,0.001,0.1)
+    else:
+        print('grid generation is not implemented yet:/')
+        raise NotImplementedError
 if __name__ == '__main__':
     main()
