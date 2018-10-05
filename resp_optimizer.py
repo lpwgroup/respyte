@@ -12,13 +12,11 @@ try:
     import openeye.oechem as oechem
 except ImportError:
     warn(' The Openeye module cannot be imported. ( Please provide equivGoups and listofpolar manually.)')
-try:
-    from forcebalance.molecule import *
-except ImportError:
-    warn(' The Forcebalance module cannot be imported. (Cannot read PDB files.)')
 
+# ForceBalance is a dependency
+from forcebalance.molecule import *
 from readinp import Input
-from molecule import Molecule_HJ, Molecule_OEMol
+from molecule_resp import Molecule_HJ, Molecule_OEMol
 from engine import *
 from writemol2 import *
 from resp_points_HJ import *
@@ -26,7 +24,7 @@ from resp_points_HJ import *
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
 
-class RESPyt_Optimizer:
+class Respyte_Optimizer:
     def __init__(self, inp = None, molecule = None):
         self.inp = inp
         self.molecule = molecule
@@ -920,7 +918,7 @@ def main():
             molecule.addPdbFiles(*coordfilepath)
         molecule.addEspf(*espffilepath)
 
-    cal = RESPyt_Optimizer()
+    cal = Respyte_Optimizer()
     cal.addInp(inp)
     cal.addMolecule(molecule)
     if inp.restraintinfo:

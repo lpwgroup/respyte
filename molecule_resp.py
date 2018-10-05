@@ -16,10 +16,11 @@ try:
     import openeye.oechem as oechem
 except ImportError:
     warn(' The Openeye module cannot be imported. ( Please provide equivGoups and listofpolar manually.)')
-try:
-    from forcebalance.molecule import *
-except ImportError:
-    warn(' The Forcebalance module cannot be imported. (Cannot read PDB files.)')
+# try:
+#     from forcebalance.molecule import *
+# except ImportError:
+#     warn(' The Forcebalance module cannot be imported. (Cannot read PDB files.)')
+from forcebalance.molecule import *
 
 from readinp import Input
 

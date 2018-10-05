@@ -9,15 +9,11 @@ import re
 from collections import OrderedDict, namedtuple, Counter
 from readinp import Input
 from warnings import warn
-try:
-    from forcebalance.Mol2 import *
-except ImportError:
-    warn('The Mol2 module cannot be imported (Cannot read/write Mol2 files)')
 
-try:
-    from forcebalance.PDB import *
-except ImportError:
-    warn('The pdb module cannot be imported (Cannot read/write PDB files)')
+# Imports from ForceBalance
+from forcebalance.Mol2 import *
+from forcebalance.PDB import *
+
 # Import CIB's resp_points python scripts to generate grid points:)
 
 """
