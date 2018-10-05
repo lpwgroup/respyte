@@ -798,6 +798,7 @@ def main():
     """
     cwd = os.getcwd() # the path where resp_optimizer.py is sitting
     if inp.grid_gen is True:
+        print('  Generating grid points.')
         gridType  = inp.gridinfo['type']
 
         if 'radii' in inp.gridinfo:
@@ -816,13 +817,16 @@ def main():
                 for j in range(i):
                     confN = 'conf%d' % (j+1)
                     path = wkd + '%s/' % (confN)
+                    print('os.listdir(path)',os.listdir(path))
                     for fnm in os.listdir(path):
-                        if fnm.endswith('.xyz'):
+                        if fnm == '%s_%s.xyz' % (molN, confN):
                             coordpath = path + '%s_%s.xyz' % (molN, confN)
                             ftype = 'xyz'
-                        elif fnm.endswith('.pdb'):
+                        elif  fnm == '%s_%s.pdb' % (molN, confN):
                             coordpath = path + '%s_%s.pdb' % (molN, confN)
                             ftype = 'pdb'
+                        else:
+                            continue
                         PdbtoMol2(coordpath)
                         molFile = path + '%s_%s.mol2' % (molN, confN)
                         mol = ReadOEMolFromFile(molFile)
@@ -913,18 +917,20 @@ def main():
                 path = wkd + '%s/' % (confN)
 
                 for fnm in os.listdir(path):
-                    if fnm.endswith('.xyz'):
+                    if fnm == '%s_%s.xyz' % (molN, confN):
                         coordpath = path + '%s_%s.xyz' % (molN, confN)
                         ftype = 'xyz'
                         espfpath = path + '%s_%s.espf' %(molN, confN)
                         coordfilepath.append(coordpath)
                         espffilepath.append(espfpath)
-                    elif fnm.endswith('.pdb'):
+                    elif fnm == '%s_%s.pdb' % (molN, confN):
                         coordpath = path + '%s_%s.pdb' % (molN, confN)
                         ftype = 'pdb'
                         espfpath = path + '%s_%s.espf' %(molN, confN)
                         coordfilepath.append(coordpath)
                         espffilepath.append(espfpath)
+                    else:
+                        continue
         if ftype is 'xyz':
             print(coordfilepath)
             molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
