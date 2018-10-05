@@ -114,10 +114,10 @@ class Input:
         """ Read charge fit model (Model2, Model3, 2-stg-fit)"""
         restraintinfo = inp['restraint']
 
-        if inp['grid_gen'] :
+        if 'grid_gen' in inp :
             if inp['grid_gen'] is 'Y':
                 grid_gen = True
-                if inp['grid_setting'] :
+                if 'grid_setting' in inp :
                     gridinfo = inp['grid_setting']
                 else:
                     # if there's no information provided, use msk grids as a default///

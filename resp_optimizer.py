@@ -19,6 +19,9 @@ except ImportError:
 
 from readinp import Input
 from molecule import Molecule_HJ, Molecule_OEMol
+from engine import *
+from writemol2 import *
+from resp_points_HJ import *
 
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
@@ -775,75 +778,174 @@ def main():
     else:
         molecule = Molecule_HJ()
     molecule.addInp(inp)
-    if inp.grid_gen is False:
-        # Add coordinates
-        for idx, i in enumerate(inp.nmols): # need to trim a bit more:
+    """
+    Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    """
+    cwd = os.getcwd()
+    if inp.grid_gen is True:
+        gridType  = inp.gridinfo['type']
+
+        if inp.gridinfo['radii']:
+            radii = inp.gridinfo['radii']
+
+        for idx, i in enumerate(inp.nmols):
             molN = 'mol%d' % (idx+1)
-            wkd = 'input/molecules/%s/' %(molN)
+            wkd = '%s/input/molecules/%s/' %(cwd,molN)
             coordfilepath = []
-            espffilepath = []
-            # if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)) is False:
-            #     print('Please combine xyz files into one xyz file with %s.xyz as its name.' % (molN))
-            #     break
             if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
                 coordpath = wkd + '%s.xyz' % (molN)
                 ftype = 'xyz'
                 coordfilepath.append(coordpath)
-                for j in range(i):
-                    confN = 'conf%d' % (j+1)
-                    path = wkd + '%s/' % (confN)
-                    espfpath = path + '%s_%s.espf' %(molN, confN)
-                    espffilepath.append(espfpath)
+                print('converting xyz to mol2 hasnt been implemented:/ Soooorryy.')
+                raise NotImplementedError
             else:
                 for j in range(i):
                     confN = 'conf%d' % (j+1)
                     path = wkd + '%s/' % (confN)
-
                     for fnm in os.listdir(path):
                         if fnm.endswith('.xyz'):
                             coordpath = path + '%s_%s.xyz' % (molN, confN)
                             ftype = 'xyz'
-                            espfpath = path + '%s_%s.espf' %(molN, confN)
-
+                            print('converting xyz to mol2 hasnt been implemented:/ Soooorryy.')
+                            raise NotImplementedError
                         elif fnm.endswith('.pdb'):
                             coordpath = path + '%s_%s.pdb' % (molN, confN)
                             ftype = 'pdb'
-                            espfpath = path + '%s_%s.espf' %(molN, confN)
-                    coordfilepath.append(coordpath)
-                    espffilepath.append(espfpath)
-            if ftype is 'xyz':
-                print(coordfilepath)
-                molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
-            elif ftype is 'pdb':
-                molecule.addPdbFiles(*coordfilepath)
-            molecule.addEspf(*espffilepath)
+                            PdbtoMol2(coordpath)
+                            print('Created %s_%s.mol2 in %s' % (molN, confN,path))
+                            molFile = path + '%s_%s.mol2' % (molN, confN)
+                            mol = ReadOEMolFromFile(molFile)
 
-        cal = RESPyt_Optimizer()
-        cal.addInp(inp)
-        cal.addMolecule(molecule)
-        if inp.restraintinfo:
-            if inp.restraintinfo['penalty'] == 'model2':
-                aval = inp.restraintinfo['a']
-                cal.Model2qpot(aval)
-            elif inp.restraintinfo['penalty'] == 'model3':
-                aval = inp.restraintinfo['a']
-                bval = inp.restraintinfo['b']
-                cal.Model3qpot(aval, bval)
-            elif inp.restraintinfo['penalty'] == '2-stg-fit':
-                a1val = inp.restraintinfo['a1']
-                a2val = inp.restraintinfo['a2']
-                bval = inp.restraintinfo['b']
-                cal.twoStageFit(a1val, a2val,bval)
+                            if radii=='bondi':
+                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
+                            elif radii=='modbondi':
+                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
+                            else:
+                                oechem.OEThrow.Fatal('unrecognized radii type %s' % radii)
 
-        print()
-        print('    #####################################################')
-        print('    ###               Test calculations               ###')
-        print('    #####################################################')
-        cal.Model2qpot(0.005)
-        cal.Model3qpot(0.0005,0.1)
-        cal.twoStageFit(0.0005,0.001,0.1)
-    else:
-        print('grid generation is not implemented yet:/')
-        raise NotImplementedError
+                            gridOptions = {}
+                            gridOptions['space'] = 0.7
+                            gridOptions['inner'] = 1.4
+                            gridOptions['outer'] = 2.0
+                            if gridType=='MSK' or gridType=='msk':
+                                gridOptions['gridType'] = 'MSK'
+                                gridOptions['space'] = 1.0
+                            elif gridType=='fcc':
+                                gridOptions['gridType'] = 'shellFacConst'
+                                gridOptions['outer'] = 1.0
+                            elif gridType=='vdwfactors':
+                                gridOptions['gridType'] = 'shellFac'
+                            elif gridType=='vdwconstants':
+                                gridOptions['gridType'] = 'shellConst'
+                                gridOptions['inner'] = 0.4
+                                gridOptions['outer'] = 1.0
+                            else:
+                                oechem.OEThrow.Fatal('unrecognized grid type %s' % gridType)
+
+                            if 'inner' in inp.gridinfo:
+                                gridOptions['inner'] = inp.gridinfo['inner']
+                            if 'outer' in inp.gridinfo:
+                                gridOptions['outer'] = inp.gridinfo['outer']
+                            if 'space' in inp.gridinfo:
+                                gridOptions['space'] = inp.gridinfo['space']
+
+                            if gridOptions['gridType']=='MSK':
+                                # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
+                                allPts = resp.GenerateMSKShellPts( mol, gridOptions)
+                            else:
+                                # generate a face-centered cubic grid shell around the molecule using gridOptions
+                                allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
+                            print('Total points:', len(allPts))
+
+                            ofs = open('%sgrid.dat' % path,'w')
+                            for pt in allPts:
+                                ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
+                            ofs.close()
+                            print('grid.dat written')
+                            engine = EnginePsi4()
+                            engine.write_input(coordpath, job_path = path)
+                            engine.espcal(job_path= path)
+                            griddat = path + 'grid.dat'
+                            espdat = path + 'grid_esp.dat'
+                            efdat = path + 'grid_field.dat'
+                            espfoutput = path + '%s_%s.espf' % (molN, confN)
+                            engine.genespf(griddat, espdat, efdat, espfoutput)
+                            # get output files and add them into one single .espf file
+                            # I;m on writing this script////// wait a second...
+
+
+    """
+    Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    """
+
+
+    for idx, i in enumerate(inp.nmols): # need to trim a bit more:
+        molN = 'mol%d' % (idx+1)
+        wkd = '%s/input/molecules/%s/' %(cwd,molN)
+        coordfilepath = []
+        espffilepath = []
+        # if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)) is False:
+        #     print('Please combine xyz files into one xyz file with %s.xyz as its name.' % (molN))
+        #     break
+        if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
+            coordpath = wkd + '%s.xyz' % (molN)
+            ftype = 'xyz'
+            coordfilepath.append(coordpath)
+            for j in range(i):
+                confN = 'conf%d' % (j+1)
+                path = wkd + '%s/' % (confN)
+                espfpath = path + '%s_%s.espf' %(molN, confN)
+                espffilepath.append(espfpath)
+        else:
+            for j in range(i):
+                confN = 'conf%d' % (j+1)
+                path = wkd + '%s/' % (confN)
+
+                for fnm in os.listdir(path):
+                    if fnm.endswith('.xyz'):
+                        coordpath = path + '%s_%s.xyz' % (molN, confN)
+                        ftype = 'xyz'
+                        espfpath = path + '%s_%s.espf' %(molN, confN)
+
+                    elif fnm.endswith('.pdb'):
+                        coordpath = path + '%s_%s.pdb' % (molN, confN)
+                        ftype = 'pdb'
+                        espfpath = path + '%s_%s.espf' %(molN, confN)
+                coordfilepath.append(coordpath)
+                espffilepath.append(espfpath)
+        if ftype is 'xyz':
+            print(coordfilepath)
+            molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
+        elif ftype is 'pdb':
+            molecule.addPdbFiles(*coordfilepath)
+        molecule.addEspf(*espffilepath)
+
+    cal = RESPyt_Optimizer()
+    cal.addInp(inp)
+    cal.addMolecule(molecule)
+    if inp.restraintinfo:
+        if inp.restraintinfo['penalty'] == 'model2':
+            aval = inp.restraintinfo['a']
+            cal.Model2qpot(aval)
+        elif inp.restraintinfo['penalty'] == 'model3':
+            aval = inp.restraintinfo['a']
+            bval = inp.restraintinfo['b']
+            cal.Model3qpot(aval, bval)
+        elif inp.restraintinfo['penalty'] == '2-stg-fit':
+            a1val = inp.restraintinfo['a1']
+            a2val = inp.restraintinfo['a2']
+            bval = inp.restraintinfo['b']
+            cal.twoStageFit(a1val, a2val,bval)
+
+    print()
+    print('    #####################################################')
+    print('    ###               Test calculations               ###')
+    print('    #####################################################')
+    cal.Model2qpot(0.005)
+    cal.Model3qpot(0.0005,0.1)
+    cal.twoStageFit(0.0005,0.001,0.1)
+    # else:
+    #     print('grid generation is not implemented yet:/')
+    #     raise NotImplementedError
 if __name__ == '__main__':
     main()
