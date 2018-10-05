@@ -346,6 +346,9 @@ class Molecule_HJ:
             charge = None
         chargeinfo = [[indices, resname, charge]]
         self.listofchargeinfo.append(chargeinfo)
+        # For now, when cheminformatics is not used, ignore polar atoms
+        listofpolar = []
+        self.listofpolars.append(listofpolar)
 
     def addPdbFiles(self, *pdbFiles):
         xyzs = []
@@ -426,6 +429,9 @@ class Molecule_HJ:
             resname = 'mol%d' %(number)
             chargeinfo = [[indices, resname, charge]]
         self.listofchargeinfo.append(chargeinfo)
+        # For now, when cheminformatics is not used, ignore polar atoms
+        listofpolar = []
+        self.listofpolars.append(listofpolar)
 
     def addEspf(self, *espfFiles):
         for espfFile in espfFiles:
