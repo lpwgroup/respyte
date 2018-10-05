@@ -1,7 +1,7 @@
 import os
 import subprocess
 import numpy as np
-from molecule import Molecule_HJ
+from molecule_resp import Molecule_HJ
 from collections import OrderedDict
 from warnings import warn
 AtomicMass = OrderedDict([('H' , 1.0079), ('He' , 4.0026),
