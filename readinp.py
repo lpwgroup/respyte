@@ -14,20 +14,22 @@ import yaml
 from warnings import warn
 
 from collections import OrderedDict, namedtuple, Counter
-# For AMBER force field:)
-aminoAcidUnits = ['ACE', 'NHE', 'NME', # Capping groups
-                  'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'CYX', 'GLU', 'GLN', 'GLY', 'HID', 'HIE', 'HIP',
-                  'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
+# Set default residue charges for amino acids (AMBER force field)
+aminoAcidUnits = ['ACE', 'NME', 'NHE',
+                  'ALA', 'ARG', 'ASN', 'ASP', 'ASH', # ASH: ASP protonated
+                  'CYS', 'CYM', 'CYX' , # CYM: deprotonated(-1?), CYX: S-S crosslinking
+                  'GLU', 'GLH', 'GLN', 'GLY',
+                  'HID', 'HIE', 'HIP', # HIP: protonated
+                  'ILE', 'LEU', 'LYS', 'LYN', # LYN: neutral
+                  'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 ResidueCharge = []
-
 for residue in aminoAcidUnits:
     if residue == 'ARG' or residue == 'LYS' or residue == 'HIP':
         ResidueCharge.append(1)
-    elif residue == 'ASP' or residue == 'GLU':
+    elif residue == 'ASP' or residue == 'GLU' or residue == 'CYM':
         ResidueCharge.append(-1)
     else:
         ResidueCharge.append(0)
-
 ResidueChargeDict = OrderedDict()
 for idx, i in enumerate(aminoAcidUnits):
     ResidueChargeDict[i] = ResidueCharge[idx]
@@ -40,14 +42,11 @@ class Input:
         self.charge_equal = {}
         self.nmols = []
         self.restraintinfo = {}
-        # self.charge = None # need to remove, if charge is given, will
-        #                    # consider whole molecule as one residue with the given net charge
         self.grid_gen = False
         self.gridinfo = None
 
 
     def readinput(self, inputFile):
-
         inp = yaml.load(open(inputFile))
 
         """ Read Cheminformatics """
@@ -55,11 +54,6 @@ class Input:
             cheminformatics = inp['cheminformatics']
         else:
             cheminformatics = None
-
-        # """ Read total charge (mainly for small organic molecule)"""
-        # if 'charge' in inp:
-        #     charge = inp['charge']
-        #     self.charge = charge
 
         """ Read set_charge for charge freezing """
         if 'set_charge' in inp:
@@ -71,26 +65,14 @@ class Input:
         From net_set, define resChargeDict.
         For small molecule, resname is like mol1, mol2, ... and atomname is the same with element name:)
         """
-        # print('before editing:', ResidueChargeDict)
         resChargeDict = copy.deepcopy(ResidueChargeDict)
         if 'net_set'  in inp:
             net_set = inp['net_set']
             resChargeDict.update(net_set)
-        # else:
-        #     net_set = {}
-        # resChargeDict = copy.deepcopy(ResidueChargeDict)
-        # for i in net_set:
-        #     res = net_set[i]['resname']
-        #     setcharge = net_set[i]['rescharge']
-        #     resChargeDict[res] = setcharge
-        # print('after applying net_Set:(check the crazy glu charge)')
-        # print()
-        # print(resChargeDict)
+
         if 'charge' in inp:
             resChargeDict.update(inp['charge'])
-        # print('after applying charge:(check if they included mol1,2):')
-        # print()
-        # print(resChargeDict)
+
         """"atomnames and residue names whose charges are set to be equal:)"""
         if 'charge_equal' in inp:
             charge_equal_inp = inp['charge_equal']
@@ -122,7 +104,6 @@ class Input:
                 else:
                     # if there's no information provided, use msk grids as a default///
                     gridinfo = {'type'   : 'msk',
-                                #'prefix' : 'msk',
                                 'radii'  : 'bondi'}
             if inp['grid_gen'] is 'N':
                 grid_gen = False

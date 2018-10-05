@@ -779,11 +779,11 @@ def main():
     """
     Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     """
-    cwd = os.getcwd()
+    cwd = os.getcwd() # the path where resp_optimizer.py is sitting
     if inp.grid_gen is True:
         gridType  = inp.gridinfo['type']
 
-        if inp.gridinfo['radii']:
+        if 'radii' in inp.gridinfo:
             radii = inp.gridinfo['radii']
 
         for idx, i in enumerate(inp.nmols):
@@ -794,7 +794,6 @@ def main():
                 coordpath = wkd + '%s.xyz' % (molN)
                 ftype = 'xyz'
                 coordfilepath.append(coordpath)
-                print('converting xyz to mol2 hasnt been implemented:/ Soooorryy.')
                 raise NotImplementedError
             else:
                 for j in range(i):
@@ -804,72 +803,69 @@ def main():
                         if fnm.endswith('.xyz'):
                             coordpath = path + '%s_%s.xyz' % (molN, confN)
                             ftype = 'xyz'
-                            print('converting xyz to mol2 hasnt been implemented:/ Soooorryy.')
-                            raise NotImplementedError
                         elif fnm.endswith('.pdb'):
                             coordpath = path + '%s_%s.pdb' % (molN, confN)
                             ftype = 'pdb'
-                            PdbtoMol2(coordpath)
-                            print('Created %s_%s.mol2 in %s' % (molN, confN,path))
-                            molFile = path + '%s_%s.mol2' % (molN, confN)
-                            mol = ReadOEMolFromFile(molFile)
+                        PdbtoMol2(coordpath)
+                        molFile = path + '%s_%s.mol2' % (molN, confN)
+                        mol = ReadOEMolFromFile(molFile)
 
-                            if radii=='bondi':
-                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
-                            elif radii=='modbondi':
-                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
-                            else:
-                                oechem.OEThrow.Fatal('unrecognized radii type %s' % radii)
+                        if radii=='bondi':
+                            oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
+                        elif radii=='modbondi':
+                            oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
+                        else:
+                            oechem.OEThrow.Fatal('unrecognized radii type %s' % radii)
 
-                            gridOptions = {}
-                            gridOptions['space'] = 0.7
-                            gridOptions['inner'] = 1.4
-                            gridOptions['outer'] = 2.0
-                            if gridType=='MSK' or gridType=='msk':
-                                gridOptions['gridType'] = 'MSK'
-                                gridOptions['space'] = 1.0
-                            elif gridType=='fcc':
-                                gridOptions['gridType'] = 'shellFacConst'
-                                gridOptions['outer'] = 1.0
-                            elif gridType=='vdwfactors':
-                                gridOptions['gridType'] = 'shellFac'
-                            elif gridType=='vdwconstants':
-                                gridOptions['gridType'] = 'shellConst'
-                                gridOptions['inner'] = 0.4
-                                gridOptions['outer'] = 1.0
-                            else:
-                                oechem.OEThrow.Fatal('unrecognized grid type %s' % gridType)
+                        gridOptions = {}
+                        gridOptions['space'] = 0.7
+                        gridOptions['inner'] = 1.4
+                        gridOptions['outer'] = 2.0
+                        if gridType=='MSK' or gridType=='msk':
+                            gridOptions['gridType'] = 'MSK'
+                            gridOptions['space'] = 1.0
+                        elif gridType=='fcc':
+                            gridOptions['gridType'] = 'shellFacConst'
+                            gridOptions['outer'] = 1.0
+                        elif gridType=='vdwfactors':
+                            gridOptions['gridType'] = 'shellFac'
+                        elif gridType=='vdwconstants':
+                            gridOptions['gridType'] = 'shellConst'
+                            gridOptions['inner'] = 0.4
+                            gridOptions['outer'] = 1.0
+                        else:
+                            oechem.OEThrow.Fatal('unrecognized grid type %s' % gridType)
 
-                            if 'inner' in inp.gridinfo:
-                                gridOptions['inner'] = inp.gridinfo['inner']
-                            if 'outer' in inp.gridinfo:
-                                gridOptions['outer'] = inp.gridinfo['outer']
-                            if 'space' in inp.gridinfo:
-                                gridOptions['space'] = inp.gridinfo['space']
+                        if 'inner' in inp.gridinfo:
+                            gridOptions['inner'] = inp.gridinfo['inner']
+                        if 'outer' in inp.gridinfo:
+                            gridOptions['outer'] = inp.gridinfo['outer']
+                        if 'space' in inp.gridinfo:
+                            gridOptions['space'] = inp.gridinfo['space']
 
-                            if gridOptions['gridType']=='MSK':
-                                # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
-                                allPts = resp.GenerateMSKShellPts( mol, gridOptions)
-                            else:
-                                # generate a face-centered cubic grid shell around the molecule using gridOptions
-                                allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
-                            print('Total points:', len(allPts))
+                        if gridOptions['gridType']=='MSK':
+                            # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
+                            allPts = resp.GenerateMSKShellPts( mol, gridOptions)
+                        else:
+                            # generate a face-centered cubic grid shell around the molecule using gridOptions
+                            allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
+                        print('Total points:', len(allPts))
 
-                            ofs = open('%sgrid.dat' % path,'w')
-                            for pt in allPts:
-                                ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
-                            ofs.close()
-                            print('grid.dat written')
-                            engine = EnginePsi4()
-                            engine.write_input(coordpath, job_path = path)
-                            engine.espcal(job_path= path)
-                            griddat = path + 'grid.dat'
-                            espdat = path + 'grid_esp.dat'
-                            efdat = path + 'grid_field.dat'
-                            espfoutput = path + '%s_%s.espf' % (molN, confN)
-                            engine.genespf(griddat, espdat, efdat, espfoutput)
-                            # get output files and add them into one single .espf file
-                            # I;m on writing this script////// wait a second...
+                        ofs = open('%sgrid.dat' % path,'w')
+                        for pt in allPts:
+                            ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
+                        ofs.close()
+                        print('grid.dat is generated in %s' % path)
+                        engine = EnginePsi4()
+                        engine.write_input(coordpath, job_path = path)
+                        engine.espcal(job_path= path)
+                        griddat = path + 'grid.dat'
+                        espdat = path + 'grid_esp.dat'
+                        efdat = path + 'grid_field.dat'
+                        espfoutput = path + '%s_%s.espf' % (molN, confN)
+                        engine.genespf(griddat, espdat, efdat, espfoutput)
+                        # get output files and add them into one single .espf file
+                        # I;m on writing this script////// wait a second...
 
 
     """

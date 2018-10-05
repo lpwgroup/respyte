@@ -26,25 +26,6 @@ from readinp import Input
 
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
-# Set default residue charges for amino acids (AMBER force field)
-aminoAcidUnits = ['ACE', 'NME', 'NHE',
-                  'ALA', 'ARG', 'ASN', 'ASP', 'ASH', # ASH: ASP protonated
-                  'CYS', 'CYM', 'CYX' , # CYM: deprotonated(-1?), CYX: S-S crosslinking
-                  'GLU', 'GLH', 'GLN', 'GLY',
-                  'HID', 'HIE', 'HIP', # HIP: protonated
-                  'ILE', 'LEU', 'LYS', 'LYN', # LYN: neutral
-                  'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
-ResidueCharge = []
-for residue in aminoAcidUnits:
-    if residue == 'ARG' or residue == 'LYS' or residue == 'HIP':
-        ResidueCharge.append(1)
-    elif residue == 'ASP' or residue == 'GLU' or residue == 'CYM':
-        ResidueCharge.append(-1)
-    else:
-        ResidueCharge.append(0)
-ResidueChargeDict = OrderedDict()
-for idx, i in enumerate(aminoAcidUnits):
-    ResidueChargeDict[i] = ResidueCharge[idx]
 
 AtomicMass = OrderedDict([('H' , 1.0079), ('He' , 4.0026),
                           ('Li' , 6.941), ('Be' , 9.0122), ('B' , 10.811), ('C' , 12.0107), ('N' , 14.0067), ('O' , 15.9994), ('F' , 18.9984), ('Ne' , 20.1797),
@@ -197,7 +178,7 @@ class Molecule_HJ:
         assert isinstance(listofpolar, (list,))
         self.listofpolars.append(listofpolar)
 
-    def set_charge(self, resChargeDict, atomid, atomidinfo, resnumber):
+    def gen_chargeinfo(self, resChargeDict, atomid, atomidinfo, resnumber):
         """
         Output should be like [[[indices], resname, netcharge], ...]
         """
@@ -214,8 +195,6 @@ class Molecule_HJ:
                 resnmof1statm.append(atomidinfo[atomid[idx+2]][0]['resname'])
         chargeinfo = []
         idxof1statm.append(len(atomid))
-        # print(idxof1statm,resnmof1statm)
-        # input()
         for idx, resnm in enumerate(resnmof1statm):
             charge = resChargeDict[resnm]
             lstofidx  =list(range(idxof1statm[idx], idxof1statm[idx+1]))
@@ -439,7 +418,7 @@ class Molecule_HJ:
         for xyz in xyzs:
             self.xyzs.append(xyz)
         if self.inp is not None:
-            chargeinfo = self.set_charge(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+            chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
         else:
             indices = list(range(len(elem)))
             charge = None
@@ -756,7 +735,7 @@ class Molecule_OEMol(Molecule_HJ):
         for xyz in xyzs:
             self.xyzs.append(xyz)
         if self.inp is not None:
-            chargeinfo = self.set_charge(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+            chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
         else:
             indices = list(range(len(elem)))
             charge = None

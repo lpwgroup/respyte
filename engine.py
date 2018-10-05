@@ -20,11 +20,18 @@ AtomicMass = OrderedDict([('H' , 1.0079), ('He' , 4.0026),
                           ('Lr' , 262), ('Rf' , 261), ('Db' , 262), ('Sg' , 266), ('Bh' , 264), ('Hs' , 277), ('Mt' , 268)])
 
 class Engine(object):
-    def __init__(self, input_file = None):
+    def __init__(self, coordfile = None, input_file = None):
         if input_file is not None:
             self.read_input(input_file)
-        else:
-            self.write_input(molecule)
+
+        if coordfile is not None:
+            self.write_input(coordfile)
+
+    def read_input(self, input_file):
+        raise NotImplementedError
+
+    def write_input(self, coordfile):
+        raise NotImplementedError
 
     def run(self, cmd, input_files=None, output_files = None, job_path = None):
         if input_files is None or output_files is None:
@@ -50,7 +57,7 @@ E,wfn = prop('HF' , properties = ['GRID_ESP', 'GRID_FIELD'], return_wfn=True)
 bohr2Ang = 0.52918825
 
 class EnginePsi4(Engine):
-    def __init__(self, coordfile = None, input_file = None, molecule = None):
+    def __init__(self, coordfile = None, input_file = None):
         if input_file is not None:
             self.read_input(input_file)
 

@@ -23,7 +23,8 @@ For now, this code is mostly for protein. Will consider carbohydrates and organi
 
 class PdbtoMol2(object):
     def __init__(self, fnm = None, ftype = None):
-        self.Read_Tab = {'pdb'    : self.read_pdb} # need to add xyz?? yes for sure... (not now)
+        self.Read_Tab = {'pdb'    : self.read_pdb,
+                         'xyz'    : self.read_xyz}
         self.Write_Tab = {'mol2'  : self.write_mol2}
         # Data container.
         self.Data = {}
@@ -37,6 +38,59 @@ class PdbtoMol2(object):
             for key, val in Parsed.items():
                 self.Data[key] = val
         self.Write_Tab['mol2']()
+    def read_xyz(self, fnm, **kwargs):
+        # raise NotImplementedError
+        """
+        Copied from molecule.py in forcebalance
+        """
+        xyz   = []
+        xyzs  = []
+        comms = []
+        elem  = []
+        an    = 0
+        na    = 0
+        ln    = 0
+        absln = 0
+        for line in open(fnm):
+            line = line.strip().expandtabs()
+            if ln == 0:
+                # Skip blank lines.
+                if len(line.strip()) > 0:
+                    na = int(line.strip())
+            elif ln == 1:
+                comms.append(line.strip())
+            else:
+                line = re.sub(r"([0-9])(-[0-9])", r"\1 \2", line)
+                sline = line.split()
+                xyz.append([float(i) for i in sline[1:]])
+                if len(elem) < na:
+                    elem.append(sline[0])
+                an += 1
+                if an == na:
+                    xyzs.append(np.array(xyz))
+                    xyz = []
+                    an  = 0
+            if ln == na+1:
+                # Reset the line number counter when we hit the last line in a block.
+                ln = -1
+            ln += 1
+            absln += 1
+        resid = np.ones((len(elem)))
+        resname = []
+        for i in range(len(elem)):
+            resname.append('noname')
+        Answer = {'elem'      : elem,
+                  'atomname'  : elem,
+                  'resid'     : resid,
+                  'resname'   : resname,
+                  'xyzs'      : xyzs,
+                  'comms'     : comms}
+        return Answer
+
+        Answer={"xyzs":XYZList, "chain":list(ChainID), "altloc":list(AltLoc), "icode":list(ICode),
+                "atomname":[str(i) for i in AtomNames], "resid":list(ResidueID), "resname":list(ResidueNames),
+                "elem":elem, "comms":['' for i in range(len(XYZList))], "terminal" : PDBTerms}
+
     def read_pdb(self, fnm, **kwargs):
         """
         copied from molecule.py in forcebalance
@@ -144,13 +198,17 @@ class PdbtoMol2(object):
                 f.write('@<TRIPOS>MOLECULE\n')
                 f.write('%s' % self.Data['comms'][0]+'\n')
                 f.write('%4i' % len(self.Data['elem'])+'\n')
-                f.write('PROTEIN\n') # need to change. hard-coded
+                if self.Data['ftype'] == 'pdb':
+                    f.write('PROTEIN\n') # need to change. hard-coded
+                elif self.Data['ftype'] == 'xyz':
+                    f.write('SMALL\n')
                 f.write('NO_CHARGE\n\n')
                 f.write('@<TRIPOS>ATOM\n')
                 for idx, i in enumerate(self.Data['xyzs'][0]):
                     atomidx = '%s%i' % (elem[idx], (idx+1))
                     f.write(row_format.format(idx+1, atomidx, i[0], i[1], i[2], atomname[idx], resid[idx], resname[idx], 0.0))
                     f.write('\n')
+            print('Created mol2 file from %s.%s.' %(name, self.Data['ftype']))
         else:
             print('Mol2 file alread exists?? Please check and rerun the code:)')
 
@@ -159,19 +217,17 @@ def main():
 
     inp = Input()
     inp.readinput('input/respyte.yml')
-
+    cwd = os.getcwd()
     # Add coordinates
     for idx, i in enumerate(inp.nmols): # need to trim a bit more:
         molN = 'mol%d' % (idx+1)
-        wkd = 'input/molecules/%s/' %(molN)
+        wkd = '%s/input/molecules/%s/' %(cwd,molN)
         coordfilepath = []
-        #espffilepath = []
         if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
             coordpath = wkd + '%s.xyz' % (molN)
             ftype = 'xyz'
             coordfilepath.append(coordpath)
-            print('converting xyz to mol2 hasnt been implemented:/ Soooorryy.')
-            raise NotImplementedError
+            PdbtoMol2(coordpath)
         else:
             for j in range(i):
                 confN = 'conf%d' % (j+1)
@@ -180,13 +236,10 @@ def main():
                     if fnm.endswith('.xyz'):
                         coordpath = path + '%s_%s.xyz' % (molN, confN)
                         ftype = 'xyz'
-                        print('converting xyz to mol2 hasnt been implemented:/ Soooorryy.')
-                        raise NotImplementedError
                     elif fnm.endswith('.pdb'):
                         coordpath = path + '%s_%s.pdb' % (molN, confN)
                         ftype = 'pdb'
-                        PdbtoMol2(coordpath)
-                        print('Created %s_%s.mol2 in %s' % (molN, confN,path)) # it should be modified...
+                    PdbtoMol2(coordpath)
 
 if __name__ == '__main__':
     main()
