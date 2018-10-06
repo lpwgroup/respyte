@@ -70,6 +70,7 @@ class Molecule_HJ:
         for efval in efvals:
             self.addEfValues(efval)
         self.prnlev = prnlev
+        self.ftype = 'None'
 
     def addXyzCoordinates(self, xyz):
         if not isinstance(xyz, np.ndarray) or len(xyz.shape) != 2 or xyz.shape[1] != 3:
@@ -349,6 +350,7 @@ class Molecule_HJ:
         # For now, when cheminformatics is not used, ignore polar atoms
         listofpolar = []
         self.listofpolars.append(listofpolar)
+        self.ftype = 'xyz'
 
     def addPdbFiles(self, *pdbFiles):
         xyzs = []
@@ -432,6 +434,7 @@ class Molecule_HJ:
         # For now, when cheminformatics is not used, ignore polar atoms
         listofpolar = []
         self.listofpolars.append(listofpolar)
+        self.ftype = 'pdb'
 
     def addEspf(self, *espfFiles):
         for espfFile in espfFiles:
@@ -603,6 +606,7 @@ class Molecule_OEMol(Molecule_HJ):
             charge = None
         chargeinfo = [[indices, resname, charge]]
         self.listofchargeinfo.append(chargeinfo)
+        self.ftype = 'xyz'
 
     def addPdbFiles(self, *pdbFiles):
         xyzs = []
@@ -749,6 +753,7 @@ class Molecule_OEMol(Molecule_HJ):
             resname = 'mol%d' % (number)
             chargeinfo = [[indices, resname, charge]]
         self.listofchargeinfo.append(chargeinfo)
+        self.ftype = 'pdb'
 def main():
 
     inp = Input()
