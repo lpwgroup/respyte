@@ -17,8 +17,6 @@ Copyright (c) 2018, Hyesu Jang
 Project based on the 
 [Computational Molecular Science Python Cookiecutter](https://github.com/molssi/cookiecutter-cms)
 =======
-# respyte
-implementation of open-source version of RESP method
 
 # Installation
 From a clean Miniconda installation, run the following:
