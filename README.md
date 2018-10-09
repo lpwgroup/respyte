@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 respyte
 ==============================
 [//]: # (Badges)
@@ -16,3 +17,25 @@ Copyright (c) 2018, Hyesu Jang
  
 Project based on the 
 [Computational Molecular Science Python Cookiecutter](https://github.com/molssi/cookiecutter-cms)
+=======
+# respyte
+implementation of open-source version of RESP method
+
+# Installation
+From a clean Miniconda installation, run the following:
+
+```
+conda create --name respyte python=3.6
+source activate respyte
+conda install -c psi4 psi4
+conda install -c openeye openeye-toolkits
+conda install pandas scipy pyyaml matplotlib future
+conda install -c conda-forge pymbar
+conda install -c omnia forcebalance
+```
+
+# Running
+To run the code, run this command from the root folder:
+`python resp_optimizer.py`
+
+>>>>>>> 9c60816f42dd137d697cb3f676a9e0834f2da5bd
