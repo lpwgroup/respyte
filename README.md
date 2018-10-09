@@ -7,16 +7,6 @@ respyte
 
 implementation of open-source version of RESP method
 
-#### Copyright
-
-Copyright (c) 2018, Hyesu Jang
-
-
-#### Acknowledgements
- 
-Project based on the 
-[Computational Molecular Science Python Cookiecutter](https://github.com/molssi/cookiecutter-cms)
-
 ## Installation
 From a clean Miniconda installation, run the following:
 
@@ -33,4 +23,15 @@ conda install -c omnia forcebalance
 ## Running
 To run the code, run this command from the root folder:
 `python resp_optimizer.py`
+
+
+#### Copyright
+
+Copyright (c) 2018, Hyesu Jang
+
+
+#### Acknowledgements
+
+Project based on the
+[Computational Molecular Science Python Cookiecutter](https://github.com/molssi/cookiecutter-cms)
 
