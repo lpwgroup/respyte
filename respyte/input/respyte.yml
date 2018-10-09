@@ -1,0 +1,75 @@
+# YAML format
+
+# Data structure:
+# input/
+# |----respyte.yml
+# |----molecules/
+#      |----mol1/
+#           |----conf1/
+#                |----mol1_conf1.pdb(or .xyz) (, mol1_conf1.espf)
+#           |----conf2/
+#                |----mol1_conf2.pdb(or .xyz) (, mol1_conf2.espf)
+
+# keys: molecules, cheminformatics, grid_setting, restraint, set_charge, net_set, charge_equal
+
+molecules:
+    mol1 :
+        - conf1
+        - conf2
+    mol2 :
+        - conf1                            
+charge: 
+    mol1 : 0
+    mol2 : 0
+
+cheminformatics : openeye # openeye or None
+
+grid_gen : Y # (Y/N)
+
+#grid_setting :
+#    type   : msk # msk(default)/ fcc/ vdwfactors/ vdwconstants
+#    inner  : 1.2
+#    outer  : 2.2
+#    #prefix : msk_inner_1.2_outer_2.2
+#    radii  : bondi # bondi(default)/ modbondi
+#    #space  : 
+
+restraint :
+    penalty : model2
+    a       : 0.005
+
+    # penalty : model3
+    # a       : 0.0005
+    # b       : 0.1
+
+    # penalty : 2-stg-fit
+    # a1      : 0.0005
+    # a2      : 0.001
+    # b       : 0.1
+
+#set_charge:
+#    atom1:
+#        resname: ALA
+#        atomname: CA
+#        charge: -0.2
+#    atom2:
+#        resname: ALA
+#        atomname: HA
+#        charge: 0.2
+
+net_set:
+    GLU : -1000
+
+charge_equal:
+    group1:
+        atomname: N
+        resname: '*'
+    group2:
+        atomname: C
+        resname: '*'
+    group3:
+        atomname: O
+        resname: '*'
+    group4:
+        atomname: H
+        resname: '*'
