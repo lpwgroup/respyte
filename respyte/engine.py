@@ -88,6 +88,8 @@ class EnginePsi4(Engine):
         # for indices, residue, charge in molecule.listofchargeinfo[0]:
         #     totchg += charge
         totchg = charge
+        for el in atomnum:
+            totchg += int(el)
         if totchg % 2 == 0:
             spinmult = 1
         elif totchg % 2 == 1:
