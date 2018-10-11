@@ -74,7 +74,7 @@ class EnginePsi4(Engine):
 
         molecule = Molecule_HJ()
         if coordfile.endswith('.xyz'):
-            molecule.addXyzFile(coordfile)
+            molecule.addXyzFiles(coordfile)
         elif coordfile.endswith('.pdb'):
             molecule.addPdbFiles(coordfile)
 
