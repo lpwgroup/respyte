@@ -252,9 +252,8 @@ class Molecule_HJ:
     def addXyzFiles(self, *xyzFiles, resname = None):
         xyzs = []
         firstframe = True
-        firstline = True
         for xyzFile in xyzFiles:
-
+            firstline = True
             if len(self.atomidinfo) == 0:
                 atmID = 1
             else:
@@ -305,7 +304,7 @@ class Molecule_HJ:
                             atmID += 1
                     elif firstline == False and ls.isdigit() == True  and int(ls) == nAtom:
                         firstframe = False
-                        if len(xyz) == nAotm:
+                        if len(xyz) == nAtom:
                             xyzs.append(np.array(xyz)/bohr2Ang)
                             xyz = []
                         else:
