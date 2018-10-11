@@ -86,12 +86,13 @@ class Input:
         charge_equal = newcharge_equal
         """ Check how many molecules and how many conformers are set to be fitted """
         nmols = []
-        for molecule in inp['molecules']:
-            if inp['molecules'][molecule] is None:
-                nmol = 1
-            else:
-                nmol = len(inp ['molecules'][molecule])
-            nmols.append(nmol)
+        for mol in inp['molecules']:
+            # if inp['molecules'][molecule] is None:
+            #     nmol = 1
+            # else:
+            #     nmol = len(inp ['molecules'][molecule])
+            # nmols.append(nmol)
+            nmols.append(int(inp['molecules'][mol]))
 
         """ Read charge fit model (Model2, Model3, 2-stg-fit)"""
         restraintinfo = inp['restraint']

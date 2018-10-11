@@ -491,6 +491,8 @@ class Respyte_Optimizer:
                 f.write('SMALL\n')
             f.write('RESP_CHARGES\n\n')
             f.write('@<TRIPOS>ATOM\n')
+            # print(len(xyz), len(atoms))
+            # input()
             for idx, i in enumerate(xyz):
                 atomidx = '%s%i' % (atoms[idx], (idx+1))
                 f.write(row_format.format(idx+1, atomidx, round(i[0]*bohr2Ang,4),
@@ -583,7 +585,7 @@ class Respyte_Optimizer:
                 print('    RRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
-                                    self.molecule.elems[idx], self.molecule.ftype, self.molecule.xyzs[idx], qpots[idx],
+                                    self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
                                     outfilenm = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                 config += 1
             loc += i
@@ -695,7 +697,7 @@ class Respyte_Optimizer:
                 print('    RRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
-                                    self.molecule.elems[idx], self.molecule.ftype, self.molecule.xyzs[idx], qpots[idx],
+                                    self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
                                     outfilenm = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                 config += 1
             loc += i
@@ -775,6 +777,9 @@ class Respyte_Optimizer:
         elem_nonpolar = [elem_comb[i] for i in listofnonpolar_comb]
 
         newlistofNonpolarEquiv  = []
+        print('#########################################################')
+        print('listofNonpolarEquiv', listofNonpolarEquiv)
+        print('listofnonpolar_comb', listofnonpolar_comb)
         for nonpolarequivgroup in listofNonpolarEquiv:
             newindices = []
             for i in nonpolarequivgroup:
@@ -819,6 +824,9 @@ class Respyte_Optimizer:
         print()
         print('    Two stage fit with a1 = %.4f, a2 = %.4f' % (weight1, weight2))
         loc = 0
+        # print('nmols', self.molecule.nmols)
+        # print('len(elems)', len(self.molecule.elems))
+        # input()
         for idx, i in enumerate(self.molecule.nmols):
             config = 1
             for xyz,gridxyz, espval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i]):
@@ -838,7 +846,7 @@ class Respyte_Optimizer:
                 print('    RRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
-                                    self.molecule.elems[idx], self.molecule.ftype, self.molecule.xyzs[idx], qpots[idx],
+                                    self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
                                     outfilenm = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                 config += 1
             loc += i
@@ -993,7 +1001,7 @@ def main():
                         continue
         if ftype is 'xyz':
             print(coordfilepath)
-            molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
+            molecule.addXyzFiles(*coordfilepath) # so far, the len(coordfilepath) should be 1.
         elif ftype is 'pdb':
             molecule.addPdbFiles(*coordfilepath)
         molecule.addEspf(*espffilepath)

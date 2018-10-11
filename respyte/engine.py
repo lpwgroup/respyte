@@ -98,7 +98,7 @@ class EnginePsi4(Engine):
             return "%-s % 10.4f % 10.4f % 10.4f" % (element, xyz[0], xyz[1],xyz[2])
 
         with open(filename, 'w') as outfile:
-            outfile.write(psi4_template_head.format(chg = totchg, mult = spinmult))
+            outfile.write(psi4_template_head.format(chg = charge, mult = spinmult))
             for idx, i in enumerate(elem):
                 outfile.write(format_xyz_coord(i, xyzs[idx]))
                 outfile.write('\n')

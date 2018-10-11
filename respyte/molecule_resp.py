@@ -249,71 +249,73 @@ class Molecule_HJ:
                 resnameof1statm.append(listofresname[idx])
         return idxof1statm, resnameof1statm
 
-    def addXyzFile(self, xyzFile, resname = None):
+    def addXyzFiles(self, *xyzFiles, resname = None):
         xyzs = []
-        firstline = True
         firstframe = True
-        if len(self.atomidinfo) == 0:
-            atmID = 1
-        else:
-            atmID = max(list(self.atomidinfo.keys()))+1
-        # Read xyzFile
-        with open(xyzFile) as xyzfile:
-            for line in xyzfile:
-                ls = line.strip().expandtabs()
-                if firstline == True and ls.isdigit() == True:
-                    nAtom = int(ls)
-                    firstline = False
-                    xyz  = []
-                    elem = []
-                    atomid = []
-                    lstofatomname = []
-                    lstofresname = []
-                elif re.match("[0-9]+( +[-+]?([0-9]*\.)?[0-9]+){4}$" or "[0-9]+( +[-+]?([0-9]*\.)?[0-9]+){3}$", ls):
-                    sline = ls.split()
-                    xyz.append([float(i) for i in sline[1:4]])
-                    if firstframe is True:
-                        atomicNum = int(ls[0])
-                        elem.append(atomicNum)
-                        atomname = list(AtomicMass.keys())[atomicNum-1]
-                        if resname is None:
-                            number = len(self.elems)+1
-                            resname = 'mol%d' %(number)
-                        lstofatomname.append(atomname)
-                        lstofresname.append(resname)
-                        val = { 'resname' : resname, 'atomname' : atomname}
-                        self.atomidinfo[atmID] = val
-                        atomid.append(atmID)
-                        atmID += 1
-                elif re.match("^[A-Z][A-Za-z]?( +[-+]?([0-9]*\.)?[0-9]+){3}$", ls):
-                    sline = ls.split()
-                    xyz.append([float(i) for i in sline[1:4]])
-                    if firstframe is True:
-                        atomicNum = list(AtomicMass.keys()).index(ls[0])+1
-                        elem.append(atomicNum)
-                        atomname = ls[0]
-                        if resname is None:
-                            number = len(self.elems)+1
-                            resname = 'mol%d' %(number)
-                        lstofatomname.append(atomname)
-                        lstofresname.append(resname)
-                        val = { 'resname' : resname, 'atomname' : atomname}
-                        self.atomidinfo[atmID] = val
-                        atomid.append(atmID)
-                        atmID += 1
-                elif firstline == False and ls.isdigit() == True  and int(ls) == nAtom:
-                    firstframe = False
-                    if len(xyz) == nAotm:
-                        xyzs.append(np.array(xyz)/bohr2Ang)
-                        xyz = []
-                    else:
-                        raise RuntimeError('The xyz file contains some format error.')
-                        break
-            if len(xyz) == nAtom:
-                xyzs.append(np.array(xyz)/bohr2Ang)
+        firstline = True
+        for xyzFile in xyzFiles:
+
+            if len(self.atomidinfo) == 0:
+                atmID = 1
             else:
-                raise RuntimeError('The xyz file contains some format error.')
-        print('%d conformers have been read from %s.' % (len(xyzs),xyzFile))
+                atmID = max(list(self.atomidinfo.keys()))+1
+            # Read xyzFile
+            with open(xyzFile) as xyzfile:
+                for line in xyzfile:
+                    ls = line.strip().expandtabs()
+                    if firstline == True and ls.isdigit() == True:
+                        nAtom = int(ls)
+                        firstline = False
+                        xyz  = []
+                        elem = []
+                        atomid = []
+                        lstofatomname = []
+                        lstofresname = []
+                    elif re.match("[0-9]+( +[-+]?([0-9]*\.)?[0-9]+){4}$" or "[0-9]+( +[-+]?([0-9]*\.)?[0-9]+){3}$", ls):
+                        sline = ls.split()
+                        xyz.append([float(i) for i in sline[1:4]])
+                        if firstframe is True:
+                            atomicNum = int(ls[0])
+                            elem.append(atomicNum)
+                            atomname = list(AtomicMass.keys())[atomicNum-1]
+                            if resname is None:
+                                number = len(self.elems)+1
+                                resname = 'mol%d' %(number)
+                            lstofatomname.append(atomname)
+                            lstofresname.append(resname)
+                            val = { 'resname' : resname, 'atomname' : atomname}
+                            self.atomidinfo[atmID] = val
+                            atomid.append(atmID)
+                            atmID += 1
+                    elif re.match("^[A-Z][A-Za-z]?( +[-+]?([0-9]*\.)?[0-9]+){3}$", ls):
+                        sline = ls.split()
+                        xyz.append([float(i) for i in sline[1:4]])
+                        if firstframe is True:
+                            atomicNum = list(AtomicMass.keys()).index(ls[0])+1
+                            elem.append(atomicNum)
+                            atomname = ls[0]
+                            if resname is None:
+                                number = len(self.elems)+1
+                                resname = 'mol%d' %(number)
+                            lstofatomname.append(atomname)
+                            lstofresname.append(resname)
+                            val = { 'resname' : resname, 'atomname' : atomname}
+                            self.atomidinfo[atmID] = val
+                            atomid.append(atmID)
+                            atmID += 1
+                    elif firstline == False and ls.isdigit() == True  and int(ls) == nAtom:
+                        firstframe = False
+                        if len(xyz) == nAotm:
+                            xyzs.append(np.array(xyz)/bohr2Ang)
+                            xyz = []
+                        else:
+                            raise RuntimeError('The xyz file contains some format error.')
+                            break
+                if len(xyz) == nAtom:
+                    xyzs.append(np.array(xyz)/bohr2Ang)
+                else:
+                    raise RuntimeError('The xyz file contains some format error.')
+        print('%d conformers have been read.' % (len(xyzs)))
 
         if self.inp is not None:
             equiv_ids = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
@@ -466,134 +468,141 @@ class Molecule_HJ:
             self.addEfValues(efval)
 
 class Molecule_OEMol(Molecule_HJ):
-    def addXyzFile(self, xyzFile,resname = None):
+    def addXyzFiles(self, *xyzFiles,resname = None):
     #     # need to consider the case when user wants to pass multiple conformers as separated xyz files.
     #     if len(xyzFiles) > 1:
     #         # add files into one??
     #         for xyzFile in xyzFiles:
-        firstline = True
-        startofstructure = []
-        with open(xyzFile) as xyzfile:
-            for linenum, line in enumerate(xyzfile):
-                ls = line.strip().expandtabs()
-                if firstline == True and ls.isdigit() == True:
-                    nAtom = int(ls)
-                    firstline = False
-                    startofstructure.append(linenum)
-                elif firstline == False and ls.isdigit() == True and int(ls) == nAtom:
-                    startofstructure.append(linenum)
-        startofstructure.append(len(open(xyzFile).readlines()))
         listofoemol = []
         xyzs = []
-        for i in range(len(startofstructure)-1):
+        for j, xyzFile in enumerate(xyzFiles):
+            firstline = True
+            startofstructure = []
             with open(xyzFile) as xyzfile:
-                with open('tmp.xyz', 'w') as tmp:
-                    for linenum, line in enumerate(xyzfile):
-                        if linenum >= startofstructure[i] and linenum < startofstructure[i+1]:
-                            tmp.write(line)
-            ifs = oechem.oemolistream('tmp.xyz')
-            oemol = oechem.OEGraphMol()
-            oechem.OEReadMolecule(ifs, oemol)
-            listofoemol.append(oemol)
-            os.remove('tmp.xyz')
-            oechem.OEPerceiveSymmetry(oemol)
-            maxIdx = oemol.GetMaxAtomIdx()
-            molxyz = oechem.OEFloatArray(3*maxIdx)
-            oemol.GetCoords(molxyz)
-            molxyz = np.array(molxyz)
-            coords = np.resize(molxyz, (maxIdx,3))/bohr2Ang
-            xyzs.append(coords)
-            if i == 0: # first frame
-                elem = []
-                symmetryClass = []
-                listofpolar = []
-                atomid = []
-                lstofresname = []
-                lstofatomname = []
-                if len(self.atomidinfo) == 0:
-                    atmID = 1
-                else:
-                    atmID = max(list(self.atomidinfo.keys()))+1
-                for atom in oemol.GetAtoms():
-                    elem.append(atom.GetAtomicNum())
-                    symmetryClass.append(atom.GetSymmetryClass())
-                    atomname = list(AtomicMass.keys())[atom.GetAtomicNum()-1]
-                    if resname is None:
-                        number = len(self.elems)+1
-                        resname = 'mol%d' %(number)
-                    lstofresname.append(resname)
-                    lstofatomname.append(atomname)
+                for linenum, line in enumerate(xyzfile):
+                    ls = line.strip().expandtabs()
+                    if firstline == True and ls.isdigit() == True:
+                        nAtom = int(ls)
+                        firstline = False
+                        startofstructure.append(linenum)
+                    elif firstline == False and ls.isdigit() == True and int(ls) == nAtom:
+                        startofstructure.append(linenum)
+            startofstructure.append(len(open(xyzFile).readlines()))
 
-                    val = {'resname' : resname, 'atomname' : atomname}
-                    self.atomidinfo[atmID] = [val]
-                    atomid.append(atmID)
-                    atmID += 1
-                    if atom.IsAromatic() or atom.IsPolar() is True:
-                        listofpolar.append(atom.GetIdx())
-                        for atom2 in oemol.GetAtoms():
-                            if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
-                                listofpolar.append(atom2.GetIdx())
-                            elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
-                                listofpolar.append(atom2.GetIdx())
-                    listofpolar = sorted(set(listofpolar))
-
-                unique_sym = set(symmetryClass)
-                equiv_sym = [[i for i, v in enumerate(symmetryClass) if v == value] for value in unique_sym]
-                equiv_sym = self.removeSingleElemList(equiv_sym)
-
-                equiv_ids = []
-                for i in equiv_sym:
-                    newlst = list(set(atomid[j] for j in i))
-                    equiv_ids.append(newlst)
-
-                if self.inp is not None:
-                    new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
-                else:
-                    new_charge_equals = []
-                # equiv_id_comb
-                equiv_ids_comb = []
-                for i in equiv_ids:
-                    equiv_ids_comb.append(i)
-                for i in new_charge_equals:
-                    equiv_ids_comb.append(i)
-                for i in equiv_ids_comb:
-                    i.sort()
-                equiv_ids_comb.sort()
-
-                newequiv_ids_comb = []
-                needtoskip = []
-                for idx, equivgrp in enumerate(equiv_ids_comb):
-
-                    if idx in needtoskip:
-                        pass
+            for i in range(len(startofstructure)-1):
+                with open(xyzFile) as xyzfile:
+                    with open('tmp.xyz', 'w') as tmp:
+                        for linenum, line in enumerate(xyzfile):
+                            if linenum >= startofstructure[i] and linenum < startofstructure[i+1]:
+                                tmp.write(line)
+                ifs = oechem.oemolistream('tmp.xyz')
+                oemol = oechem.OEGraphMol()
+                oechem.OEReadMolecule(ifs, oemol)
+                listofoemol.append(oemol)
+                os.remove('tmp.xyz')
+                oechem.OEPerceiveSymmetry(oemol)
+                maxIdx = oemol.GetMaxAtomIdx()
+                molxyz = oechem.OEFloatArray(3*maxIdx)
+                oemol.GetCoords(molxyz)
+                molxyz = np.array(molxyz)
+                coords = np.resize(molxyz, (maxIdx,3))/bohr2Ang
+                xyzs.append(coords)
+                if i == 0 and j ==0: # very first frame
+                    elem = []
+                    symmetryClass = []
+                    listofpolar = []
+                    atomid = []
+                    lstofresname = []
+                    lstofatomname = []
+                    if len(self.atomidinfo) == 0:
+                        atmID = 1
                     else:
-                        newequivgrp = equivgrp
-                        for idxx, equivgrp2 in enumerate(equiv_ids_comb[idx+1:]):
+                        atmID = max(list(self.atomidinfo.keys()))+1
+                    for atom in oemol.GetAtoms():
+                        elem.append(atom.GetAtomicNum())
+                        symmetryClass.append(atom.GetSymmetryClass())
+                        atomname = list(AtomicMass.keys())[atom.GetAtomicNum()-1]
+                        if resname is None:
+                            number = len(self.elems)+1
+                            resname = 'mol%d' %(number)
+                        lstofresname.append(resname)
+                        lstofatomname.append(atomname)
 
-                            if any(i in equivgrp2 for i in equivgrp ):
-                                needtoskip.append(idxx+idx+1)
-                                newequivgrp = list(set(newequivgrp + equivgrp2))
-                        newequiv_ids_comb.append(newequivgrp)
+                        val = {'resname' : resname, 'atomname' : atomname}
+                        self.atomidinfo[atmID] = [val]
+                        atomid.append(atmID)
+                        atmID += 1
+                        if atom.IsAromatic() or atom.IsPolar() is True:
+                            listofpolar.append(atom.GetIdx())
+                            for atom2 in oemol.GetAtoms():
+                                if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
+                                    listofpolar.append(atom2.GetIdx())
+                                elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
+                                    listofpolar.append(atom2.GetIdx())
+                        listofpolar = sorted(set(listofpolar))
 
-                equiv_ids_comb = newequiv_ids_comb
+                    unique_sym = set(symmetryClass)
+                    equiv_sym = [[i for i, v in enumerate(symmetryClass) if v == value] for value in unique_sym]
+                    equiv_sym = self.removeSingleElemList(equiv_sym)
+                    print('equiv_sym',equiv_sym)
+                    equiv_ids = []
+                    for k in equiv_sym:
+                        newlst = list(set(atomid[j] for j in k))
+                        equiv_ids.append(newlst)
+                    print('equiv_ids', equiv_ids)
+                    if self.inp is not None:
+                        new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                    else:
+                        new_charge_equals = []
+                    # equiv_id_comb
+                    print('new_charge_equals', new_charge_equals)
+                    equiv_ids_comb = []
+                    for i in equiv_ids:
+                        equiv_ids_comb.append(i)
+                    for i in new_charge_equals:
+                        equiv_ids_comb.append(i)
+                    for i in equiv_ids_comb:
+                        i.sort()
+                    equiv_ids_comb.sort()
+                    print('equiv_ids_comb', equiv_ids_comb)
+                    """
+                    Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    """
+                    newequiv_ids_comb = []
+                    needtoskip = []
+                    for idx, equivgrp in enumerate(equiv_ids_comb):
+                        if idx in needtoskip:
+                            pass
+                        else:
+                            newequivgrp = equivgrp
+                            for idxx, equivgrp2 in enumerate(equiv_ids_comb[idx+1:]):
 
-                newatomid = atomid.copy()
-                newnewatomidinfo = self.atomidinfo.copy()
-                for equiv_id in equiv_ids_comb:
-                    newid = equiv_id[0]
-                    for i in equiv_id[1:]:
-                        newatomid = [newid if x == i else x for x in newatomid]
-                        for j in self.atomidinfo[i]:
-                            newnewatomidinfo[newid].append(j) # need to remove old one
-                        del newnewatomidinfo[i]
+                                if any(i in equivgrp2 for i in newequivgrp ):
+                                    needtoskip.append(idxx+idx+1)
+                                    newequivgrp = list(set(newequivgrp + equivgrp2))
+                            newequiv_ids_comb.append(newequivgrp)
+                    print('needtoskip', needtoskip)
+                    equiv_ids_comb = newequiv_ids_comb
 
-                self.atomids.append(newatomid)
-                self.atomidinfo = newnewatomidinfo
-                self.elems.append(elem)
-                self.listofpolars.append(listofpolar)
-                self.resnames.append(lstofresname)
-                self.atomnames.append(lstofatomname)
-        print('%d conformers have been read from %s.' % (len(xyzs),xyzFile))
+                    newatomid = atomid.copy()
+                    newnewatomidinfo = self.atomidinfo.copy()
+                    print('equiv_ids_comb', equiv_ids_comb)
+                    print('newatomid',newatomid)
+                    for equiv_id in equiv_ids_comb:
+                        newid = equiv_id[0]
+                        for i in equiv_id[1:]:
+                            newatomid = [newid if x == i else x for x in newatomid]
+                            for j in self.atomidinfo[i]:
+                                newnewatomidinfo[newid].append(j) # need to remove old one
+                            del newnewatomidinfo[i]
+
+                    self.atomids.append(newatomid)
+                    self.atomidinfo = newnewatomidinfo
+                    self.elems.append(elem)
+                    self.listofpolars.append(listofpolar)
+                    self.resnames.append(lstofresname)
+                    self.atomnames.append(lstofatomname)
+        print('%d conformers have been read.' % (len(xyzs)))
         for xyz in xyzs:
             self.xyzs.append(xyz)
         self.nmols.append(len(xyzs))
@@ -802,7 +811,7 @@ def main():
                     espffilepath.append(espfpath)
             if ftype is 'xyz':
                 print(coordfilepath)
-                molecule.addXyzFile(*coordfilepath) # so far, the len(coordfilepath) should be 1.
+                molecule.addXyzFiles(*coordfilepath) # so far, the len(coordfilepath) should be 1.
             elif ftype is 'pdb':
                 molecule.addPdbFiles(*coordfilepath)
             molecule.addEspf(*espffilepath)
