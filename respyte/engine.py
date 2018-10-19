@@ -47,12 +47,11 @@ noreorient
 nocom
 {chg} {mult}
 """
-psi4_template_tail="""}
-set {
-basis 6-31g*
-reference uhf
-}
-E,wfn = prop('HF' , properties = ['GRID_ESP', 'GRID_FIELD'], return_wfn=True)
+psi4_template_tail="""}}
+set {{
+basis {basis}
+}}
+E,wfn = prop('{method}' , properties = ['GRID_ESP', 'GRID_FIELD'], return_wfn=True)
 """
 bohr2Ang = 0.52918825
 
@@ -67,7 +66,7 @@ class EnginePsi4(Engine):
     def read_input(self, input_file):
         raise NotImplementedError
 
-    def write_input(self,  coordfile, charge = 0, filename = 'input.dat', job_path = None):
+    def write_input(self,  coordfile, basis='6-31g*', method = 'uhf', charge = 0, filename = 'input.dat', job_path = None):
         # take coordinate file and make molecule object ??
         if job_path is not None:
             os.chdir(job_path)
@@ -102,7 +101,7 @@ class EnginePsi4(Engine):
             for idx, i in enumerate(elem):
                 outfile.write(format_xyz_coord(i, xyzs[idx]))
                 outfile.write('\n')
-            outfile.write(psi4_template_tail)
+            outfile.write(psi4_template_tail.format(basis = basis, method =method)) #### set inside input file
     def genespf(self, gridfile, espfile, effile, outputfile):
         ngrid = 0
         gridxyz = []

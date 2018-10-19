@@ -116,6 +116,104 @@ class Respyte_Optimizer:
             apot[j,j] = np.sum( np.sort(invRiSq) )
         return apot, bpot
 
+    def EfDesignMatrix(self, xyzs, gridxyzs, efval):
+        """
+        Produces a design matrix A and vector B from electric field values to solve for charges q in Aq=B.
+        Assumes a single input structure.
+
+        Parameters
+        ----------
+        xyzs : np.ndarray
+            Coordinates of atoms whose charges are being fitted.
+            Some of these atoms may be topologically equivalent
+            but this function doesn't care about that.
+
+        gridxyzs : np.ndarray
+            Coordinates of potential / field grid points
+
+        efval : np.ndarray
+            Electric field values
+
+        Returns
+        -------
+        np.ndarray, np.ndarray
+
+            A matrix and B vector
+        """
+        nAtoms = xyzs.shape[0]
+        molbohr = np.array(xyzs.copy())
+        gridx = np.array([xyz[0] for xyz in gridxyzs])
+        gridy = np.array([xyz[1] for xyz in gridxyzs])
+        gridz = np.array([xyz[2] for xyz in gridxyzs])
+        fldv = np.array(efval)
+        fldvsq = fldv*fldv
+        ssvfld = np.sum( fldvsq)
+        ssvfldsorted = np.sum( np.sort(fldvsq) )
+        # list of 1/Rij**2 (atom i and point j)
+        invRijSq = []
+        invRijCubed = []
+        invRij = []
+        dxij = []
+        dyij = []
+        dzij = []
+        for atom in range(nAtoms):
+            idx = atom
+            dxi = gridx-molbohr[idx,0]
+            dxij.append( dxi)
+            dyi = gridy-molbohr[idx,1]
+            dyij.append( dyi)
+            dzi = gridz-molbohr[idx,2]
+            dzij.append( dzi)
+            rijsq = dxi*dxi + dyi*dyi +dzi*dzi
+            invRiSq = 1.0/rijsq
+            absinvRi = np.sqrt(invRiSq)
+            invRijSq.append( invRiSq )
+            invRij.append(absinvRi)
+            invRijCubed.append(invRiSq*absinvRi)
+        """
+        Under construction.....................................................
+        """
+        # build A matrix and B vector using electric field.
+        dria = np.zeros((nAtoms,len(efval),3))
+        for j in range(nAtoms):
+            for i in range(len(efval)):
+                dria[j][i] = np.array([dxij[j][i],dyij[j][i],dzij[j][i]])
+        apot = np.zeros( (nAtoms, nAtoms) )
+        bpot = np.zeros( nAtoms)
+        for c, invRcCubed in enumerate( invRijCubed):
+            bi = invRcCubed*np.einsum('ij,ij->i',efval,dria[c])
+            bpot[c] = np.sum(np.sort(bi))
+            for a in range(0,c):
+                riaric = np.einsum('ij,ij->i',dria[a],dria[c])
+                ai = np.sum( np.sort( invRijCubed[a]*invRcCubed*riaric))
+                apot[c,a] = ai
+                apot[a,c] = ai
+            apot[c,c] = np.sum(np.sort(invRij[c]*invRcCubed))
+        return apot, bpot
+
+    def EspEfDesignMatrix(self, xyzs, gridxyzs, espval, efval):
+        Aesp, Besp = self.EspDesignMatrix(xyzs, gridxyzs, espval)
+        Aef, Bef = self.EfDesignMatrix(xyzs, gridxyzs, efval)
+
+        potv = np.array(espval)
+        potvsq = potv*potv
+        ssvpot = np.sum( potvsq)
+        fldv = np.array(efval)
+        fldvsq = fldv*fldv
+        ssvfld = np.sum( fldvsq)
+        # weight = np.sqrt(ssvpot/ssvfld)
+        # print('weight:',ssvpot/ssvfld,', sqrt of weight:',np.sqrt(ssvpot/ssvfld))
+        # print('compare As:',len(Aesp), Aesp[3],len(Aef), Aef[3])
+        # print('compare Bs:',len(Besp), Besp, len(Bef), Bef)
+        weight = ssvpot/ssvfld
+        Acomb =( Aesp + Aef*weight)
+        Bcomb =( Besp + Bef*weight)
+        # print('A after mixin:', Acomb[3])
+        # print('B after mixin:', Bcomb)
+        # input()
+
+        return Acomb, Bcomb
+
     def LagrangeChargeConstraint(self, aInp, bInp, chargeinfo):
         """
         Returns A matrix and B vector after applying lagrange charge constraint on 'ApplyToCenter'.
@@ -274,6 +372,41 @@ class Respyte_Optimizer:
         rrmsval = np.sqrt(chiSq/sumSq)
         return rrmsval
 
+    def efRRMS(self,apot, bpot, qpot, efval):
+        """
+        Calculate relative root mean square (RRMS) (eq 15 in 1993 JPC paper)
+
+        Parameters
+        ----------
+
+        apot : np.ndarray
+            "A" matrix; 2D array with dimension (# of atoms)
+        bpot : np.ndarray
+            "B" matrix; 1D array with dimension (# of atoms)
+        qpot : np.ndarray
+            "q" matrix; 1D array with dimension (# of atoms)
+        espval : np.ndarray
+            Electrostatic potential values
+
+        Returns
+        -------
+        float
+
+            RRMS value
+        """
+        apot = copy.deepcopy(np.array(apot))
+        bpot = copy.deepcopy(np.array(bpot))
+        qpot = copy.deepcopy(np.array(qpot))
+        # sumSq = np.sum(np.dot(espval,espval))
+        fldv = np.array(efval)
+        fldvsq = fldv*fldv
+        ssvfld = np.sum( fldvsq)
+        crossProd = np.sum(np.dot(qpot, bpot))
+        modelSumSq = np.dot(qpot,np.dot(apot,qpot))
+        chiSq = ssvfld - 2*crossProd + modelSumSq
+        rrmsval = np.sqrt(chiSq/ssvfld)
+        return rrmsval
+
 ##########################################################################################################
 ###               Functions for avoiding any duplicates in different fitting models                    ###
 ##########################################################################################################
@@ -289,8 +422,17 @@ class Respyte_Optimizer:
             Size += size
             apot_added = np.zeros((size, size))
             bpot_added = np.zeros((size))
-            for xyz, gridxyz, espval  in zip(self.molecule.xyzs[loc:loc+i], self.molecule.gridxyzs[loc:loc+i], self.molecule.espvals[loc:loc+i]):
-                apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+            for xyz, gridxyz, espval, efval  in zip(self.molecule.xyzs[loc:loc+i], self.molecule.gridxyzs[loc:loc+i], self.molecule.espvals[loc:loc+i], self.molecule.efvals[loc:loc+i]):
+                if 'matrices' in self.inp.restraintinfo:
+                    if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+
+                        apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
+                    elif self.inp.restraintinfo['matrices'] == ['esp']:
+                        apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                    elif self.inp.restraintinfo['matrices'] == ['ef']:
+                        apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
+                else:
+                    apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                 apot_added += apot
                 bpot_added += bpot
             apot_added /= i
@@ -331,6 +473,8 @@ class Respyte_Optimizer:
         """
         loc = 0
         newlistofchargeinfo = []
+        # print(listofchargeinfo)
+        # input()
         for idx, chargeinfo in enumerate(listofchargeinfo):
             for indices, resname, charge in chargeinfo:
                 newindices = [i+loc for i in indices]
@@ -568,7 +712,17 @@ class Respyte_Optimizer:
         loc = 0
         for idx, i in enumerate(self.molecule.nmols):
             config = 1
-            for xyz,gridxyz, espval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i]):
+            for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                # if 'matrices' in self.inp.restraintinfo:
+                #     if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                #         apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
+                #     elif self.inp.restraintinfo['matrices'] == ['esp']:
+                #         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                #     elif self.inp.restraintinfo['matrices'] == ['ef']:
+                #         apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
+                # else:
+                #     apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
                 apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                 print()
                 print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
@@ -582,7 +736,8 @@ class Respyte_Optimizer:
                     atomid = self.molecule.atomids[idx][index]
                     print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
                 print()
-                print('    RRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
                                     self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
@@ -680,7 +835,16 @@ class Respyte_Optimizer:
         loc = 0
         for idx, i in enumerate(self.molecule.nmols):
             config = 1
-            for xyz,gridxyz, espval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i]):
+            for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                # if 'matrices' in self.inp.restraintinfo:
+                #     if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                #         apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
+                #     elif self.inp.restraintinfo['matrices'] == ['esp']:
+                #         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                #     elif self.inp.restraintinfo['matrices'] == ['ef']:
+                #         apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
+                # else:
+                Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
                 apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                 print()
                 print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
@@ -694,7 +858,8 @@ class Respyte_Optimizer:
                     atomid = self.molecule.atomids[idx][index]
                     print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
                 print()
-                print('    RRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
                                     self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
@@ -777,9 +942,9 @@ class Respyte_Optimizer:
         elem_nonpolar = [elem_comb[i] for i in listofnonpolar_comb]
 
         newlistofNonpolarEquiv  = []
-        print('#########################################################')
-        print('listofNonpolarEquiv', listofNonpolarEquiv)
-        print('listofnonpolar_comb', listofnonpolar_comb)
+        # print('#########################################################')
+        # print('listofNonpolarEquiv', listofNonpolarEquiv)
+        # print('listofnonpolar_comb', listofnonpolar_comb)
         for nonpolarequivgroup in listofNonpolarEquiv:
             newindices = []
             for i in nonpolarequivgroup:
@@ -829,8 +994,19 @@ class Respyte_Optimizer:
         # input()
         for idx, i in enumerate(self.molecule.nmols):
             config = 1
-            for xyz,gridxyz, espval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i]):
+            for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                # if 'matrices' in self.inp.restraintinfo:
+                #     if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                #         apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
+                #     elif self.inp.restraintinfo['matrices'] == ['esp']:
+                #         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                #     elif self.inp.restraintinfo['matrices'] == ['ef']:
+                #         apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
+                # else:
+                #     apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
                 apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+
                 print()
                 print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
                 print()
@@ -843,7 +1019,8 @@ class Respyte_Optimizer:
                     atomid = self.molecule.atomids[idx][index]
                     print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
                 print()
-                print('    RRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
                                     self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
@@ -886,75 +1063,109 @@ def main():
                 for j in range(i):
                     confN = 'conf%d' % (j+1)
                     path = wkd + '%s/' % (confN)
-                    for fnm in os.listdir(path):
-                        if fnm == '%s_%s.xyz' % (molN, confN):
-                            coordpath = path + '%s_%s.xyz' % (molN, confN)
-                            ftype = 'xyz'
-                        elif  fnm == '%s_%s.pdb' % (molN, confN):
-                            coordpath = path + '%s_%s.pdb' % (molN, confN)
-                            ftype = 'pdb'
-                        else:
-                            continue
-                        PdbtoMol2(coordpath)
-                        molFile = path + '%s_%s.mol2' % (molN, confN)
-                        mol = ReadOEMolFromFile(molFile)
 
-                        if radii=='bondi':
-                            oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
-                        elif radii=='modbondi':
-                            oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
-                        else:
-                            oechem.OEThrow.Fatal('unrecognized radii type %s' % radii)
+                    if os.path.isfile('%sgrid_esp.dat' % path):
+                        pass
+                    else:
+                        for fnm in os.listdir(path):
+                            if fnm == '%s_%s.xyz' % (molN, confN):
+                                coordpath = path + '%s_%s.xyz' % (molN, confN)
+                                ftype = 'xyz'
+                                coordfilepath.append(coordpath)
+                            elif  fnm == '%s_%s.pdb' % (molN, confN):
+                                coordpath = path + '%s_%s.pdb' % (molN, confN)
+                                ftype = 'pdb'
+                                coordfilepath.append(coordpath)
+                            else:
+                                continue
+                            #############################################################
+                            if inp.cheminformatics =='openeye':
+                                tempmol = Molecule_OEMol()
+                            else:
+                                tempmol = Molecule_HJ()
+                            tempmol.addInp(inp)
+                            if ftype is 'xyz':
+                                tempmol.addXyzFiles(coordpath)
+                            elif ftype is 'pdb':
+                                tempmol.addPdbFiles(coordpath)
+                            #############################################################
+                            PdbtoMol2(coordpath)
+                            molFile = path + '%s_%s.mol2' % (molN, confN)
+                            mol = ReadOEMolFromFile(molFile)
 
-                        gridOptions = {}
-                        gridOptions['space'] = 0.7
-                        gridOptions['inner'] = 1.4
-                        gridOptions['outer'] = 2.0
-                        if gridType=='MSK' or gridType=='msk':
-                            gridOptions['gridType'] = 'MSK'
-                            gridOptions['space'] = 1.0
-                        elif gridType=='fcc':
-                            gridOptions['gridType'] = 'shellFacConst'
-                            gridOptions['outer'] = 1.0
-                        elif gridType=='vdwfactors':
-                            gridOptions['gridType'] = 'shellFac'
-                        elif gridType=='vdwconstants':
-                            gridOptions['gridType'] = 'shellConst'
-                            gridOptions['inner'] = 0.4
-                            gridOptions['outer'] = 1.0
-                        else:
-                            oechem.OEThrow.Fatal('unrecognized grid type %s' % gridType)
+                            if radii=='bondi':
+                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
+                            elif radii=='modbondi':
+                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
+                            else:
+                                oechem.OEThrow.Fatal('unrecognized radii type %s' % radii)
 
-                        if 'inner' in inp.gridinfo:
-                            gridOptions['inner'] = inp.gridinfo['inner']
-                        if 'outer' in inp.gridinfo:
-                            gridOptions['outer'] = inp.gridinfo['outer']
-                        if 'space' in inp.gridinfo:
-                            gridOptions['space'] = inp.gridinfo['space']
+                            gridOptions = {}
+                            gridOptions['space'] = 0.7
+                            gridOptions['inner'] = 1.4
+                            gridOptions['outer'] = 2.0
+                            if gridType=='MSK' or gridType=='msk':
+                                gridOptions['gridType'] = 'MSK'
+                                gridOptions['space'] = 1.0
+                            elif gridType=='fcc':
+                                gridOptions['gridType'] = 'shellFacConst'
+                                gridOptions['outer'] = 1.0
+                            elif gridType=='vdwfactors':
+                                gridOptions['gridType'] = 'shellFac'
+                            elif gridType=='vdwconstants':
+                                gridOptions['gridType'] = 'shellConst'
+                                gridOptions['inner'] = 0.4
+                                gridOptions['outer'] = 1.0
+                            else:
+                                oechem.OEThrow.Fatal('unrecognized grid type %s' % gridType)
 
-                        if gridOptions['gridType']=='MSK':
-                            # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
-                            allPts = resp.GenerateMSKShellPts( mol, gridOptions)
-                        else:
-                            # generate a face-centered cubic grid shell around the molecule using gridOptions
-                            allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
-                        print('Total points:', len(allPts))
 
-                        ofs = open('%sgrid.dat' % path,'w')
-                        for pt in allPts:
-                            ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
-                        ofs.close()
-                        print('grid.dat is generated in %s' % path)
-                        engine = EnginePsi4()
-                        engine.write_input(coordpath, job_path = path)
-                        engine.espcal(job_path= path)
-                        griddat = path + 'grid.dat'
-                        espdat = path + 'grid_esp.dat'
-                        efdat = path + 'grid_field.dat'
-                        espfoutput = path + '%s_%s.espf' % (molN, confN)
-                        engine.genespf(griddat, espdat, efdat, espfoutput)
-                        # get output files and add them into one single .espf file
-                        # I;m on writing this script////// wait a second...
+                            if 'inner' in inp.gridinfo:
+                                gridOptions['inner'] = inp.gridinfo['inner']
+                            if 'outer' in inp.gridinfo:
+                                gridOptions['outer'] = inp.gridinfo['outer']
+                            if 'space' in inp.gridinfo:
+                                gridOptions['space'] = inp.gridinfo['space']
+
+                            if gridOptions['gridType']=='MSK':
+                                # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
+                                allPts = resp.GenerateMSKShellPts( mol, gridOptions)
+                            else:
+                                # generate a face-centered cubic grid shell around the molecule using gridOptions
+                                allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
+                            print('Total points:', len(allPts))
+
+                            ofs = open('%sgrid.dat' % path,'w')
+                            for pt in allPts:
+                                ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
+                            ofs.close()
+                            print('grid.dat is generated in %s' % path)
+                            engine = EnginePsi4()
+                            ### should change
+                            if 'method' in inp.gridinfo:
+                                mthd = inp.gridinfo['method']
+                            else:
+                                mthd = 'uhf'
+                            if 'basis' in inp.gridinfo:
+                                bss = inp.gridinfo['basis']
+                            else:
+                                bss = '6-31g*'
+                            ################################################################
+                            chg = 0
+                            for indices, resname, charge in tempmol.listofchargeinfo[0]:
+                                chg += charge
+                            ################################################################
+
+
+                            engine.write_input(coordpath, method = mthd, basis = bss, charge = chg, job_path = path)
+                            engine.espcal(job_path= path)
+                            griddat = path + 'grid.dat'
+                            espdat = path + 'grid_esp.dat'
+                            efdat = path + 'grid_field.dat'
+                            espfoutput = path + '%s_%s.espf' % (molN, confN)
+                            engine.genespf(griddat, espdat, efdat, espfoutput)
+                            # get output files and add them into one single .espf file
+                            # I;m on writing this script////// wait a second...
 
 
     """
@@ -986,18 +1197,21 @@ def main():
 
                 for fnm in os.listdir(path):
                     if fnm == '%s_%s.xyz' % (molN, confN):
+                        print('Found %s_%s.xyz' % (molN, confN) )
                         coordpath = path + '%s_%s.xyz' % (molN, confN)
                         ftype = 'xyz'
                         espfpath = path + '%s_%s.espf' %(molN, confN)
                         coordfilepath.append(coordpath)
                         espffilepath.append(espfpath)
                     elif fnm == '%s_%s.pdb' % (molN, confN):
+                        print('Found %s_%s.pdb' % (molN, confN) )
                         coordpath = path + '%s_%s.pdb' % (molN, confN)
                         ftype = 'pdb'
                         espfpath = path + '%s_%s.espf' %(molN, confN)
                         coordfilepath.append(coordpath)
                         espffilepath.append(espfpath)
                     else:
+                        print('dummy file?',fnm)
                         continue
         if ftype is 'xyz':
             print(coordfilepath)

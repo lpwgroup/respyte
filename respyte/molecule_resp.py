@@ -196,11 +196,18 @@ class Molecule_HJ:
                 resnmof1statm.append(atomidinfo[atomid[idx+2]][0]['resname'])
         chargeinfo = []
         idxof1statm.append(len(atomid))
+        terminalidx = []
         for idx, resnm in enumerate(resnmof1statm):
-            charge = resChargeDict[resnm]
-            lstofidx  =list(range(idxof1statm[idx], idxof1statm[idx+1]))
-            chargeinf = [lstofidx, resnm, charge]
-            chargeinfo.append(chargeinf)
+            if resnm == 'ACE' or resnm == 'NME'or resnm == 'NHE':
+                for i in range(idxof1statm[idx], idxof1statm[idx+1]):
+                    terminalidx.append(i)
+            else:
+                charge = resChargeDict[resnm]
+                lstofidx  =list(range(idxof1statm[idx], idxof1statm[idx+1]))
+                chargeinf = [lstofidx, resnm, charge]
+                chargeinfo.append(chargeinf)
+        terminalchginf = [terminalidx, 'terminal', 0]
+        chargeinfo.append(terminalchginf)   #Wonder if it makes sense., ......
         return chargeinfo
 
     def convert_charge_equal(self, charge_equal, atomidinfo):
@@ -543,18 +550,18 @@ class Molecule_OEMol(Molecule_HJ):
                     unique_sym = set(symmetryClass)
                     equiv_sym = [[i for i, v in enumerate(symmetryClass) if v == value] for value in unique_sym]
                     equiv_sym = self.removeSingleElemList(equiv_sym)
-                    print('equiv_sym',equiv_sym)
+                    # print('equiv_sym',equiv_sym)
                     equiv_ids = []
                     for k in equiv_sym:
                         newlst = list(set(atomid[j] for j in k))
                         equiv_ids.append(newlst)
-                    print('equiv_ids', equiv_ids)
+                    # print('equiv_ids', equiv_ids)
                     if self.inp is not None:
                         new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
                     else:
                         new_charge_equals = []
                     # equiv_id_comb
-                    print('new_charge_equals', new_charge_equals)
+                    # print('new_charge_equals', new_charge_equals)
                     equiv_ids_comb = []
                     for i in equiv_ids:
                         equiv_ids_comb.append(i)
@@ -563,7 +570,7 @@ class Molecule_OEMol(Molecule_HJ):
                     for i in equiv_ids_comb:
                         i.sort()
                     equiv_ids_comb.sort()
-                    print('equiv_ids_comb', equiv_ids_comb)
+                    # print('equiv_ids_comb', equiv_ids_comb)
                     """
                     Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     """
@@ -580,13 +587,13 @@ class Molecule_OEMol(Molecule_HJ):
                                     needtoskip.append(idxx+idx+1)
                                     newequivgrp = list(set(newequivgrp + equivgrp2))
                             newequiv_ids_comb.append(newequivgrp)
-                    print('needtoskip', needtoskip)
+                    # print('needtoskip', needtoskip)
                     equiv_ids_comb = newequiv_ids_comb
 
                     newatomid = atomid.copy()
                     newnewatomidinfo = self.atomidinfo.copy()
-                    print('equiv_ids_comb', equiv_ids_comb)
-                    print('newatomid',newatomid)
+                    # print('equiv_ids_comb', equiv_ids_comb)
+                    # print('newatomid',newatomid)
                     for equiv_id in equiv_ids_comb:
                         newid = equiv_id[0]
                         for i in equiv_id[1:]:
@@ -727,7 +734,7 @@ class Molecule_OEMol(Molecule_HJ):
                 for i in equiv_ids_comb:
                     i.sort()
                 equiv_ids_comb.sort()
-                print('equiv_ids_comb', equiv_ids_comb)
+                # print('equiv_ids_comb', equiv_ids_comb)
 
                 # and modify atomid and atomidinfo so that they(equivalent atoms) can have the same id?
                 # No cant do this. maybe not. can one key possess more than one value?
@@ -809,7 +816,7 @@ def main():
                     coordfilepath.append(coordpath)
                     espffilepath.append(espfpath)
             if ftype is 'xyz':
-                print(coordfilepath)
+                # print(coordfilepath)
                 molecule.addXyzFiles(*coordfilepath) # so far, the len(coordfilepath) should be 1.
             elif ftype is 'pdb':
                 molecule.addPdbFiles(*coordfilepath)

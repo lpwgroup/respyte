@@ -15,7 +15,7 @@ from warnings import warn
 
 from collections import OrderedDict, namedtuple, Counter
 # Set default residue charges for amino acids (AMBER force field)
-aminoAcidUnits = ['ACE', 'NME', 'NHE',
+aminoAcidUnits = [#'ACE', 'NME', 'NHE',
                   'ALA', 'ARG', 'ASN', 'ASP', 'ASH', # ASH: ASP protonated
                   'CYS', 'CYM', 'CYX' , # CYM: deprotonated(-1?), CYX: S-S crosslinking
                   'GLU', 'GLH', 'GLN', 'GLY',
@@ -28,6 +28,8 @@ for residue in aminoAcidUnits:
         ResidueCharge.append(1)
     elif residue == 'ASP' or residue == 'GLU' or residue == 'CYM':
         ResidueCharge.append(-1)
+    # elif residue == 'ACE' or residue == 'NME' or residue == 'NHE': # but how to deal with this??
+    #     pass
     else:
         ResidueCharge.append(0)
 ResidueChargeDict = OrderedDict()
@@ -105,7 +107,9 @@ class Input:
                 else:
                     # if there's no information provided, use msk grids as a default///
                     gridinfo = {'type'   : 'msk',
-                                'radii'  : 'bondi'}
+                                'radii'  : 'bondi',
+                                'method' : 'uhf',
+                                'basis'  : '6-31g*'}
             if inp['grid_gen'] is 'N':
                 grid_gen = False
                 gridinfo = None
