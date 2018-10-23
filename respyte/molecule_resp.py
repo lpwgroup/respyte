@@ -444,24 +444,35 @@ class Molecule_HJ:
         self.listofpolars.append(listofpolar)
         self.ftype = 'pdb'
 
-    def addEspf(self, *espfFiles):
-        for espfFile in espfFiles:
+    def addEspf(self, *espfFiles, selectedPts = None): # changed
+
+        for idx, espfFile in enumerate(espfFiles):
             espval = []
             gridxyz = []
             efval = []
             with open(espfFile,'r') as espffs:
-                for line in espffs:
-                    fields = line.strip().split()
-                    numbers = [float(field) for field in fields]
-                    if (len(numbers)==4):
-                        xyz = [x/bohr2Ang for x in numbers[0:3]]
-                        gridxyz.append(xyz)
-                        espval.append(numbers[3])
-                    elif (len(numbers)==3):
-                        efval.append(numbers[0:3])
-                    else:
-                        print('Error ReadEspfFile: encountered line not having 3 or 4 numbers')
-                        return False
+                selectedLines = [] # changed
+                if selectedPts == None:
+                    for i in range(len(espffs.readlines())):
+                        selectedLines.append(i) # need to finish...
+                else:
+                    for i in selectedPts[idx]: # changed
+                        selectedLines.append(int(i*2))
+                        selectedLines.append(int(i*2+1))
+                for i, line in enumerate(espffs): # changed
+                    if i in selectedLines: # changed
+                        fields = line.strip().split()
+                        numbers = [float(field) for field in fields]
+                        if (len(numbers)==4):
+                            xyz = [x/bohr2Ang for x in numbers[0:3]]
+                            gridxyz.append(xyz)
+                            espval.append(numbers[3])
+                        elif (len(numbers)==3):
+                            efval.append(numbers[0:3])
+                        else:
+                            print('Error ReadEspfFile: encountered line not having 3 or 4 numbers')
+                            return False
+
             if self.prnlev >= 1:
                 print()
                 print('ReadEspfFile: % d ESP and % d EF points read in from file %s' % (len(espval), len(efval), espfFile))
@@ -472,6 +483,7 @@ class Molecule_HJ:
             self.addGridPoints(gridxyz)
             self.addEspValues(espval)
             self.addEfValues(efval)
+
 
 class Molecule_OEMol(Molecule_HJ):
     def addXyzFiles(self, *xyzFiles,resname = None):

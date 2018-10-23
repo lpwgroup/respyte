@@ -108,11 +108,14 @@ class Input:
                     # if there's no information provided, use msk grids as a default///
                     gridinfo = {'type'   : 'msk',
                                 'radii'  : 'bondi',
-                                'method' : 'uhf',
+                                'method' : 'hf',
                                 'basis'  : '6-31g*'}
             if inp['grid_gen'] is 'N':
                 grid_gen = False
                 gridinfo = None
+
+        if 'grid_select' in inp:
+            gridinfo['grid_select'] = inp['grid_select']
 
         self.cheminformatics = cheminformatics
         self.set_charge      = set_charge

@@ -66,7 +66,7 @@ class EnginePsi4(Engine):
     def read_input(self, input_file):
         raise NotImplementedError
 
-    def write_input(self,  coordfile, basis='6-31g*', method = 'uhf', charge = 0, filename = 'input.dat', job_path = None):
+    def write_input(self,  coordfile, basis='6-31g*', method = 'hf', charge = 0, filename = 'input.dat', job_path = None):
         # take coordinate file and make molecule object ??
         if job_path is not None:
             os.chdir(job_path)

@@ -1043,6 +1043,10 @@ def main():
     Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     """
     cwd = os.getcwd() # the path where resp_optimizer.py is sitting
+
+    # need to gen 'selectedPts'- ingredients: inp.gridinfo['grid_select'], allPts
+    listoflistofselectedPts = []
+
     if inp.grid_gen is True:
         print('  Generating grid points.')
         gridType  = inp.gridinfo['type']
@@ -1054,6 +1058,7 @@ def main():
             molN = 'mol%d' % (idx+1)
             wkd = '%s/input/molecules/%s/' %(cwd,molN)
             coordfilepath = []
+            listofselectedPts = []
             if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
                 coordpath = wkd + '%s.xyz' % (molN)
                 ftype = 'xyz'
@@ -1061,83 +1066,106 @@ def main():
                 raise NotImplementedError
             else:
                 for j in range(i):
+                    selectedPts = []
                     confN = 'conf%d' % (j+1)
                     path = wkd + '%s/' % (confN)
 
-                    if os.path.isfile('%sgrid_esp.dat' % path):
-                        pass
-                    else:
-                        for fnm in os.listdir(path):
-                            if fnm == '%s_%s.xyz' % (molN, confN):
-                                coordpath = path + '%s_%s.xyz' % (molN, confN)
-                                ftype = 'xyz'
-                                coordfilepath.append(coordpath)
-                            elif  fnm == '%s_%s.pdb' % (molN, confN):
-                                coordpath = path + '%s_%s.pdb' % (molN, confN)
-                                ftype = 'pdb'
-                                coordfilepath.append(coordpath)
-                            else:
-                                continue
-                            #############################################################
-                            if inp.cheminformatics =='openeye':
-                                tempmol = Molecule_OEMol()
-                            else:
-                                tempmol = Molecule_HJ()
-                            tempmol.addInp(inp)
-                            if ftype is 'xyz':
-                                tempmol.addXyzFiles(coordpath)
-                            elif ftype is 'pdb':
-                                tempmol.addPdbFiles(coordpath)
-                            #############################################################
-                            PdbtoMol2(coordpath)
-                            molFile = path + '%s_%s.mol2' % (molN, confN)
-                            mol = ReadOEMolFromFile(molFile)
+                    # if os.path.isfile('%sgrid_esp.dat' % path):
+                    #     pass
+                    # else:
+                    for fnm in os.listdir(path):
+                        if fnm == '%s_%s.xyz' % (molN, confN):
+                            coordpath = path + '%s_%s.xyz' % (molN, confN)
+                            ftype = 'xyz'
+                            coordfilepath.append(coordpath)
+                        elif  fnm == '%s_%s.pdb' % (molN, confN):
+                            coordpath = path + '%s_%s.pdb' % (molN, confN)
+                            ftype = 'pdb'
+                            coordfilepath.append(coordpath)
+                        else:
+                            continue
+                        #############################################################
+                        if inp.cheminformatics =='openeye':
+                            tempmol = Molecule_OEMol()
+                        else:
+                            tempmol = Molecule_HJ()
+                        tempmol.addInp(inp)
+                        if ftype is 'xyz':
+                            tempmol.addXyzFiles(coordpath)
+                        elif ftype is 'pdb':
+                            tempmol.addPdbFiles(coordpath)
+                        #############################################################
+                        PdbtoMol2(coordpath)
+                        molFile = path + '%s_%s.mol2' % (molN, confN)
+                        mol = ReadOEMolFromFile(molFile)
 
-                            if radii=='bondi':
-                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
-                            elif radii=='modbondi':
-                                oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
+                        if radii=='bondi':
+                            oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
+                        elif radii=='modbondi':
+                            oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
+                        else:
+                            oechem.OEThrow.Fatal('unrecognized radii type %s' % radii)
+
+                        gridOptions = {}
+                        gridOptions['space'] = 0.7
+                        gridOptions['inner'] = 1.4
+                        gridOptions['outer'] = 2.0
+                        if gridType == 'extendedmsk' or gridType == 'extendedMsk':
+                            gridOptions['gridType'] = 'extendedMsk'
+                            gridOptions['space'] = 1.0
+                            gridOptions['inner'] = 0.8
+                            gridOptions['outer'] = 2.4 # changed
+                        elif gridType=='MSK' or gridType=='msk':
+                            gridOptions['gridType'] = 'MSK'
+                            gridOptions['space'] = 1.0
+                        elif gridType=='fcc':
+                            gridOptions['gridType'] = 'shellFacConst'
+                            gridOptions['outer'] = 1.0
+                        elif gridType=='vdwfactors':
+                            gridOptions['gridType'] = 'shellFac'
+                        elif gridType=='vdwconstants':
+                            gridOptions['gridType'] = 'shellConst'
+                            gridOptions['inner'] = 0.4
+                            gridOptions['outer'] = 1.0
+                        else:
+                            oechem.OEThrow.Fatal('unrecognized grid type %s' % gridType)
+
+
+                        if 'inner' in inp.gridinfo:
+                            gridOptions['inner'] = inp.gridinfo['inner']
+                        if 'outer' in inp.gridinfo:
+                            gridOptions['outer'] = inp.gridinfo['outer']
+                        if 'space' in inp.gridinfo:
+                            gridOptions['space'] = inp.gridinfo['space']
+
+                        if gridOptions['gridType']=='MSK' or gridOptions['gridType'] =='extendedMsk': # changed
+                            # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
+                            allPts = resp.GenerateMSKShellPts( mol, gridOptions)
+                            if 'grid_select' in inp.gridinfo:
+                                for k in inp.gridinfo['grid_select']:
+                                    N1 = np.sum([len(allPts[i]) for i in range(k)])
+                                    N2 = np.sum([len(allPts[i]) for i in range(k+1)])
+                                    for pt in range(N1, N2):
+                                        selectedPts.append(pt)
                             else:
-                                oechem.OEThrow.Fatal('unrecognized radii type %s' % radii)
-
-                            gridOptions = {}
-                            gridOptions['space'] = 0.7
-                            gridOptions['inner'] = 1.4
-                            gridOptions['outer'] = 2.0
-                            if gridType=='MSK' or gridType=='msk':
-                                gridOptions['gridType'] = 'MSK'
-                                gridOptions['space'] = 1.0
-                            elif gridType=='fcc':
-                                gridOptions['gridType'] = 'shellFacConst'
-                                gridOptions['outer'] = 1.0
-                            elif gridType=='vdwfactors':
-                                gridOptions['gridType'] = 'shellFac'
-                            elif gridType=='vdwconstants':
-                                gridOptions['gridType'] = 'shellConst'
-                                gridOptions['inner'] = 0.4
-                                gridOptions['outer'] = 1.0
-                            else:
-                                oechem.OEThrow.Fatal('unrecognized grid type %s' % gridType)
-
-
-                            if 'inner' in inp.gridinfo:
-                                gridOptions['inner'] = inp.gridinfo['inner']
-                            if 'outer' in inp.gridinfo:
-                                gridOptions['outer'] = inp.gridinfo['outer']
-                            if 'space' in inp.gridinfo:
-                                gridOptions['space'] = inp.gridinfo['space']
-
-                            if gridOptions['gridType']=='MSK':
-                                # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
-                                allPts = resp.GenerateMSKShellPts( mol, gridOptions)
-                            else:
-                                # generate a face-centered cubic grid shell around the molecule using gridOptions
-                                allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
+                                loc = 0
+                                for lst in allPts:
+                                    for idx, pt in enumerate(lst):
+                                        selectedPts.append(loc+idx)
+                                    loc += len(lst)
+                            print('Total points:', np.sum([len(allPts[i]) for i in range(len(allPts))]))
+                        else:
+                            # generate a face-centered cubic grid shell around the molecule using gridOptions
+                            allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
+                            selectedPts = list(range(len(allPts)))
                             print('Total points:', len(allPts))
-
+                        if os.path.isfile('%sgrid_esp.dat' % path):
+                            pass
+                        else:
                             ofs = open('%sgrid.dat' % path,'w')
-                            for pt in allPts:
-                                ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
+                            for pts in allPts: #changed (for msk-based scheme, allPts is a list of lists)
+                                for pt in pts:
+                                    ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
                             ofs.close()
                             print('grid.dat is generated in %s' % path)
                             engine = EnginePsi4()
@@ -1145,7 +1173,7 @@ def main():
                             if 'method' in inp.gridinfo:
                                 mthd = inp.gridinfo['method']
                             else:
-                                mthd = 'uhf'
+                                mthd = 'hf'
                             if 'basis' in inp.gridinfo:
                                 bss = inp.gridinfo['basis']
                             else:
@@ -1166,7 +1194,11 @@ def main():
                             engine.genespf(griddat, espdat, efdat, espfoutput)
                             # get output files and add them into one single .espf file
                             # I;m on writing this script////// wait a second...
-
+                    # print('checkkk')
+                    # print(inp.gridinfo['grid_select'])
+                    # print(len(selectedPts))
+                    listofselectedPts.append(selectedPts)
+            listoflistofselectedPts.append(listofselectedPts)
 
     """
     Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1211,14 +1243,16 @@ def main():
                         coordfilepath.append(coordpath)
                         espffilepath.append(espfpath)
                     else:
-                        print('dummy file?',fnm)
+                        #print('dummy file?',fnm)
                         continue
         if ftype is 'xyz':
             print(coordfilepath)
             molecule.addXyzFiles(*coordfilepath) # so far, the len(coordfilepath) should be 1.
         elif ftype is 'pdb':
             molecule.addPdbFiles(*coordfilepath)
-        molecule.addEspf(*espffilepath)
+        # print('check')
+        # print(len(listofselectedPts[idx]))
+        molecule.addEspf(*espffilepath, selectedPts =listoflistofselectedPts[idx]) # changed
     os.chdir(cwd) ####Let see if it's right...
     print('resp calculation is running on %s' % cwd)
     cal = Respyte_Optimizer()
