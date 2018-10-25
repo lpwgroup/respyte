@@ -106,16 +106,19 @@ class Input:
                     gridinfo = inp['grid_setting']
                 else:
                     # if there's no information provided, use msk grids as a default///
-                    gridinfo = {'type'   : 'msk',
-                                'radii'  : 'bondi',
-                                'method' : 'hf',
-                                'basis'  : '6-31g*'}
+                    gridinfo = {'force_gen' : 'Y',
+                                'type'      : 'msk',
+                                'radii'     : 'bondi',
+                                'method'    : 'hf',
+                                'basis'     : '6-31g*'}
             if inp['grid_gen'] is 'N':
                 grid_gen = False
                 gridinfo = None
 
-        if 'grid_select' in inp:
-            gridinfo['grid_select'] = inp['grid_select']
+        if 'shell_select' in inp:
+            gridinfo['shell_select'] = inp['shell_select']
+        if 'boundary_select' in inp:
+            gridinfo['boundary_select'] = inp['boundary_select']
 
         self.cheminformatics = cheminformatics
         self.set_charge      = set_charge

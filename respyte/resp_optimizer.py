@@ -20,6 +20,7 @@ from molecule_resp import Molecule_HJ, Molecule_OEMol
 from engine import *
 from writemol2 import *
 from resp_points_HJ import *
+from select_grid import *
 
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
@@ -1044,10 +1045,13 @@ def main():
     """
     cwd = os.getcwd() # the path where resp_optimizer.py is sitting
 
-    # need to gen 'selectedPts'- ingredients: inp.gridinfo['grid_select'], allPts
+    # need to gen 'selectedPts'- ingredients: inp.gridinfo['shell_select'], allPts
     listoflistofselectedPts = []
 
-    if inp.grid_gen is True:
+    if inp.grid_gen is True and inp.cheminformatics is None:
+        print('Grid_gen is only available when openeye is allowed to be imported')
+        raise NotImplementedError
+    elif inp.grid_gen is True and inp.cheminformatics == 'openeye':
         print('  Generating grid points.')
         gridType  = inp.gridinfo['type']
 
@@ -1099,7 +1103,7 @@ def main():
                         molFile = path + '%s_%s.mol2' % (molN, confN)
                         mol = ReadOEMolFromFile(molFile)
 
-                        if radii=='bondi':
+                        if radii=='bondi': # way to remove this part? ???
                             oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiVdw)
                         elif radii=='modbondi':
                             oechem.OEAssignRadii(mol, oechem.OERadiiType_BondiHVdw)
@@ -1118,6 +1122,10 @@ def main():
                         elif gridType=='MSK' or gridType=='msk':
                             gridOptions['gridType'] = 'MSK'
                             gridOptions['space'] = 1.0
+                        elif gridType == 'newfcc':
+                            gridOptions['gridType'] = 'shellFac'
+                            gridOptions['inner'] = 0.8
+                            gridOptions['outer'] = 2.4 # changed
                         elif gridType=='fcc':
                             gridOptions['gridType'] = 'shellFacConst'
                             gridOptions['outer'] = 1.0
@@ -1141,8 +1149,8 @@ def main():
                         if gridOptions['gridType']=='MSK' or gridOptions['gridType'] =='extendedMsk': # changed
                             # generate Merz-Singh-Kollman Connolly surfaces at 1.4, 1.6, 1.8, and 2.0 * vdW radii
                             allPts = resp.GenerateMSKShellPts( mol, gridOptions)
-                            if 'grid_select' in inp.gridinfo:
-                                for k in inp.gridinfo['grid_select']:
+                            if 'shell_select' in inp.gridinfo:
+                                for k in inp.gridinfo['shell_select']:
                                     N1 = np.sum([len(allPts[i]) for i in range(k)])
                                     N2 = np.sum([len(allPts[i]) for i in range(k+1)])
                                     for pt in range(N1, N2):
@@ -1156,13 +1164,42 @@ def main():
                             print('Total points:', np.sum([len(allPts[i]) for i in range(len(allPts))]))
                         else:
                             # generate a face-centered cubic grid shell around the molecule using gridOptions
-                            allPts = resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)
-                            selectedPts = list(range(len(allPts)))
-                            print('Total points:', len(allPts))
-                        if os.path.isfile('%sgrid_esp.dat' % path):
+                            allPts = [resp.GenerateGridPointSetAroundOEMol(mol, gridOptions)]
+                            if 'boundary_select' in inp.gridinfo: # changed
+                                inner = inp.gridinfo['boundary_select']['inner']
+                                outer = inp.gridinfo['boundary_select']['outer'] ### Under construction!!!!!(3:30pm)
+                                if 'radiiType' in inp.gridinfo['boundary_select']:
+                                    radiiType = inp.gridinfo['boundary_select']['radiiType']
+                                    if radiiType == 'AlvarezRadii':
+                                        radiitype = list(AlvarezRadii)
+                                    elif radiiType == 'BondiRadii':
+                                        radiitype = list(BondiRadiiOechem)
+                                else:
+                                    radiitype = BondiRadiiOechem
+                                    radiiType = 'BondiRadiiOechem'
+                                print('Using %s, inner factor = %0.2f, outer factor = %0.2f'  %(radiiType, inner, outer))
+                                selectedPts = SelectGridPts(tempmol, float(inner), float(outer), allPts[0], radiitype)
+
+                                # for k in inp.gridinfo['boundary_select']:
+                                #     N1 = np.sum([len(allPts[i]) for i in range(k)])
+                                #     N2 = np.sum([len(allPts[i]) for i in range(k+1)])
+                                #     for pt in range(N1, N2):
+                                #         selectedPts.append(pt)
+                            else:
+                                loc = 0
+                                for lst in allPts:
+                                    for idx, pt in enumerate(lst):
+                                        selectedPts.append(loc+idx)
+                                    loc += len(lst)
+
+                            print('Total points:', np.sum([len(allPts[i]) for i in range(len(allPts))]))
+                            print('Selected points: ', len(selectedPts))              # selectedPts = list(range(len(allPts)))
+                            # print('Total points:', len(allPts))
+                        if os.path.isfile('%sgrid_esp.dat' % path) and inp.gridinfo['force_gen'] is 'N':
                             pass
                         else:
                             ofs = open('%sgrid.dat' % path,'w')
+
                             for pts in allPts: #changed (for msk-based scheme, allPts is a list of lists)
                                 for pt in pts:
                                     ofs.write( '{0:10.6f} {1:10.6f} {2:10.6f}\n'.format(pt[0], pt[1], pt[2]) )
@@ -1195,7 +1232,7 @@ def main():
                             # get output files and add them into one single .espf file
                             # I;m on writing this script////// wait a second...
                     # print('checkkk')
-                    # print(inp.gridinfo['grid_select'])
+                    # print(inp.gridinfo['shell_select'])
                     # print(len(selectedPts))
                     listofselectedPts.append(selectedPts)
             listoflistofselectedPts.append(listofselectedPts)
@@ -1251,7 +1288,7 @@ def main():
         elif ftype is 'pdb':
             molecule.addPdbFiles(*coordfilepath)
         # print('check')
-        # print(len(listofselectedPts[idx]))
+        # print([len(listofselectedPts[i]) for i in range(5)]); input()
         molecule.addEspf(*espffilepath, selectedPts =listoflistofselectedPts[idx]) # changed
     os.chdir(cwd) ####Let see if it's right...
     print('resp calculation is running on %s' % cwd)

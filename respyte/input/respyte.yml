@@ -21,12 +21,19 @@ cheminformatics : openeye # openeye or None
 grid_gen : Y # (Y/N)
 
 grid_setting :
-    type   : extendedmsk # msk(default)/ extendedmsk/ fcc/ vdwfactors/ vdwconstants
-    radii  : bondi # bondi(default)/ modbondi
-    method : HF
-    basis  : 6-31g*
+    force_gen : N # Y/N
+    type      : newfcc # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
+    radii     : bondi # bondi(default)/ modbondi
+    method    : HF
+    basis     : 6-31g*
 
-grid_select: [3,4,5,6] # from 0
+#shell_select: [3,4,5,6] # from 0
+
+boundary_select:
+    inner : 1.4
+    outer : 2.0
+    radiiType : BondiRadii
+
 
 restraint :
     # penalty : model2
