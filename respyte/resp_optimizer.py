@@ -1236,7 +1236,30 @@ def main():
                     # print(len(selectedPts))
                     listofselectedPts.append(selectedPts)
             listoflistofselectedPts.append(listofselectedPts)
+    # incase they have precalculated espf data, we need to read provided espf data and make listoflistofselectedpts
+    elif inp.grid_gen is False:
+        for idx, i in enumerate(inp.nmols):
+            molN = 'mol%d' % (idx+1)
+            wkd = '%s/input/molecules/%s/' %(cwd,molN)
 
+            listofselectedPts = []
+            if i > 1 and os.path.isfile(wkd + '%s.xyz' % (molN)): # In this case, xyz file contains mults conf.
+                raise NotImplementedError
+            else:
+                for j in range(i):
+                    selectedPts = []
+                    confN = 'conf%d' % (j+1)
+                    path = wkd + '%s/' % (confN)
+
+                    espfpath = path + '%s_%s.espf' %(molN, confN)
+                    num = 0
+                    for line in open(espfpath):
+                        ln = line.split()
+                        if len(ln) == 4:
+                            selectedPts.append(num)
+                            num +=1
+                    listofselectedPts.append(selectedPts)
+            listoflistofselectedPts.append(listofselectedPts)
     """
     Under construction!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     """
