@@ -3,12 +3,7 @@ Molecule class (just for refreshing)
 
 """
 import os,sys, copy
-import math
-import pandas as pd
-import scipy.stats as stats
-import scipy as sci
 import numpy as np
-import pylab
 import re
 from collections import OrderedDict, namedtuple, Counter
 from warnings import warn
@@ -20,27 +15,12 @@ except ImportError:
 #     from forcebalance.molecule import *
 # except ImportError:
 #     warn(' The Forcebalance module cannot be imported. (Cannot read PDB files.)')
-from forcebalance.molecule import *
+from molecule import *
 
 from readinp import Input
 
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
-
-AtomicMass = OrderedDict([('H' , 1.0079), ('He' , 4.0026),
-                          ('Li' , 6.941), ('Be' , 9.0122), ('B' , 10.811), ('C' , 12.0107), ('N' , 14.0067), ('O' , 15.9994), ('F' , 18.9984), ('Ne' , 20.1797),
-                          ('Na' , 22.9897), ('Mg' , 24.305), ('Al' , 26.9815), ('Si' , 28.0855), ('P' , 30.9738), ('S' , 32.065), ('Cl' , 35.453), ('Ar' , 39.948),
-                          ('K' , 39.0983), ('Ca' , 40.078), ('Sc' , 44.9559), ('Ti' , 47.867), ('V' , 50.9415), ('Cr' , 51.9961), ('Mn' , 54.938), ('Fe' , 55.845), ('Co' , 58.9332),
-                          ('Ni' , 58.6934), ('Cu' , 63.546), ('Zn' , 65.39), ('Ga' , 69.723), ('Ge' , 72.64), ('As' , 74.9216), ('Se' , 78.96), ('Br' , 79.904), ('Kr' , 83.8),
-                          ('Rb' , 85.4678), ('Sr' , 87.62), ('Y' , 88.9059), ('Zr' , 91.224), ('Nb' , 92.9064), ('Mo' , 95.94), ('Tc' , 98), ('Ru' , 101.07), ('Rh' , 102.9055),
-                          ('Pd' , 106.42), ('Ag' , 107.8682), ('Cd' , 112.411), ('In' , 114.818), ('Sn' , 118.71), ('Sb' , 121.76), ('Te' , 127.6), ('I' , 126.9045), ('Xe' , 131.293),
-                          ('Cs' , 132.9055), ('Ba' , 137.327), ('La' , 138.9055), ('Ce' , 140.116), ('Pr' , 140.9077), ('Nd' , 144.24), ('Pm' , 145), ('Sm' , 150.36),
-                          ('Eu' , 151.964), ('Gd' , 157.25), ('Tb' , 158.9253), ('Dy' , 162.5), ('Ho' , 164.9303), ('Er' , 167.259), ('Tm' , 168.9342), ('Yb' , 173.04),
-                          ('Lu' , 174.967), ('Hf' , 178.49), ('Ta' , 180.9479), ('W' , 183.84), ('Re' , 186.207), ('Os' , 190.23), ('Ir' , 192.217), ('Pt' , 195.078),
-                          ('Au' , 196.9665), ('Hg' , 200.59), ('Tl' , 204.3833), ('Pb' , 207.2), ('Bi' , 208.9804), ('Po' , 209), ('At' , 210), ('Rn' , 222),
-                          ('Fr' , 223), ('Ra' , 226), ('Ac' , 227), ('Th' , 232.0381), ('Pa' , 231.0359), ('U' , 238.0289), ('Np' , 237), ('Pu' , 244),
-                          ('Am' , 243), ('Cm' , 247), ('Bk' , 247), ('Cf' , 251), ('Es' , 252), ('Fm' , 257), ('Md' , 258), ('No' , 259),
-                          ('Lr' , 262), ('Rf' , 261), ('Db' , 262), ('Sg' , 266), ('Bh' , 264), ('Hs' , 277), ('Mt' , 268)])
 
 class Molecule_HJ:
     def __init__(self, gridxyzs = [], espvals = [], efvals = [], prnlev = 0):
@@ -116,63 +96,6 @@ class Molecule_HJ:
         for i in needtoremove:
             del lst[i]
         return lst
-
-    # def set_equivGroup(self, charge_equal, atomid, atomidinfo):
-    #
-    #     new_charge_equals = []
-    #     for atmnms, resnms in charge_equal:
-    #         if len(atmnms) > 1:
-    #             pass # we are neglecting the case when atomname is given as a list for now. Be back later
-    #         else:
-    #             if resnms is "*":
-    #                 new_charge_equal = []
-    #                 for atmid, info in atomidinfo.items():
-    #                     if any(i['atomname'] == atmnms for i in info):
-    #                         new_charge_equal.append(atmid)
-    #             else:
-    #                 if len(resnms) < 2:
-    #                     pass
-    #                 else:
-    #                     new_charge_equal = []
-    #                     for resnm in resnms:
-    #                         val = {'resname' : resnm, 'atomname' : atmnms}
-    #                         for atmid, info in atomidinfo.items():
-    #                             if val in info:
-    #                                 new_charge_equal.append(int(atmid))
-    #             new_charge_equals.append(new_charge_equal)
-    #     listofsetequal = []
-    #     for charge_equal in new_charge_equals:
-    #         setequal = []
-    #         for idx, j in enumerate(atomid):
-    #             if j in charge_equal:
-    #                 setequal.append(idx)
-    #         listofsetequal.append(setequal)
-    #     unique_atomid = list(set(atomid))
-    #     needtoremove = []
-    #     for idx, i in enumerate(unique_atomid):
-    #         if any(i in lst for lst in new_charge_equals):
-    #             needtoremove.append(idx)
-    #     needtoremove.sort(reverse  = True)
-    #     for idx in needtoremove:
-    #         del unique_atomid[idx]
-    #
-    #     listofsameatoms = []
-    #     for i in unique_atomid:
-    #         sameatoms = []
-    #         for idx, j in enumerate(atomid):
-    #             if j == i:
-    #                 sameatoms.append(idx)
-    #         listofsameatoms.append(sameatoms)
-    #
-    #     listofsameatoms = self.removeSingleElemList(listofsameatoms)
-    #
-    #     equivGroup = []
-    #     for i in listofsetequal:
-    #         equivGroup.append(i)
-    #     for i in listofsameatoms:
-    #         equivGroup.append(i)
-    #
-    #     return equivGroup  # considered ID and charge_equal
 
     def set_listofpolar(self, listofpolar):
         """Manually assign polar atoms"""
@@ -283,7 +206,7 @@ class Molecule_HJ:
                         if firstframe is True:
                             atomicNum = int(ls[0])
                             elem.append(atomicNum)
-                            atomname = list(AtomicMass.keys())[atomicNum-1]
+                            atomname = list(PeriodicTable.keys())[atomicNum-1]
                             if resname is None:
                                 number = len(self.elems)+1
                                 resname = 'mol%d' %(number)
@@ -297,7 +220,7 @@ class Molecule_HJ:
                         sline = ls.split()
                         xyz.append([float(i) for i in sline[1:4]])
                         if firstframe is True:
-                            atomicNum = list(AtomicMass.keys()).index(ls[0])+1
+                            atomicNum = list(PeriodicTable.keys()).index(ls[0])+1
                             elem.append(atomicNum)
                             atomname = ls[0]
                             if resname is None:
@@ -376,7 +299,7 @@ class Molecule_HJ:
                 firstconf = False
                 newelem = []
                 for elm in elem:
-                    atomicNum =   list(AtomicMass.keys()).index(elm) + 1
+                    atomicNum =   list(PeriodicTable.keys()).index(elm) + 1
                     newelem.append(atomicNum)
                 atomid = []
 
@@ -444,29 +367,30 @@ class Molecule_HJ:
         self.listofpolars.append(listofpolar)
         self.ftype = 'pdb'
 
-    def addEspf(self, *espfFiles, selectedPts = None): # changed
-
+    def addEspf(self, *espfFiles, selectedPts):
         for idx, espfFile in enumerate(espfFiles):
             espval = []
             gridxyz = []
             efval = []
             with open(espfFile,'r') as espffs:
-                selectedLines = [] # changed
-                if selectedPts == None:
+                selectedLines = []
+                if selectedPts[idx] == None:
                     for i in range(len(espffs.readlines())):
-                        selectedLines.append(i) # need to finish...
+                        selectedLines.append(int(i))
                 else:
-                    for i in selectedPts[idx]: # changed
+                    for i in selectedPts[idx]:
                         selectedLines.append(int(i*2))
                         selectedLines.append(int(i*2+1))
-                for i, line in enumerate(espffs): # changed
-                    if i in selectedLines: # changed
+            with open(espfFile,'r') as espffs:
+                for i, line in enumerate(espffs):
+                    if i in selectedLines:
                         fields = line.strip().split()
                         numbers = [float(field) for field in fields]
                         if (len(numbers)==4):
                             xyz = [x/bohr2Ang for x in numbers[0:3]]
                             gridxyz.append(xyz)
                             espval.append(numbers[3])
+
                         elif (len(numbers)==3):
                             efval.append(numbers[0:3])
                         else:
@@ -477,6 +401,7 @@ class Molecule_HJ:
                 print()
                 print('ReadEspfFile: % d ESP and % d EF points read in from file %s' % (len(espval), len(efval), espfFile))
                 print()
+
             gridxyz = np.array(gridxyz)
             espval = np.array(espval)
             efval = np.array(efval)
@@ -539,7 +464,7 @@ class Molecule_OEMol(Molecule_HJ):
                     for atom in oemol.GetAtoms():
                         elem.append(atom.GetAtomicNum())
                         symmetryClass.append(atom.GetSymmetryClass())
-                        atomname = list(AtomicMass.keys())[atom.GetAtomicNum()-1]
+                        atomname = list(PeriodicTable.keys())[atom.GetAtomicNum()-1]
                         if resname is None:
                             number = len(self.elems)+1
                             resname = 'mol%d' %(number)
@@ -659,7 +584,7 @@ class Molecule_OEMol(Molecule_HJ):
                 firstconf = False
                 newelem = []
                 for elm in elem:
-                    atomicNum =   list(AtomicMass.keys()).index(elm) + 1
+                    atomicNum =   list(PeriodicTable.keys()).index(elm) + 1
                     newelem.append(atomicNum)
                 atomid = []
 

@@ -1,0 +1,42 @@
+REMARK   1 CREATED WITH FORCEBALANCE 2018-10-15
+HETATM    1 HH31 ACE A   1       1.177   2.316   1.431  1.00  0.00           H  
+HETATM    2  CH3 ACE A   1       0.873   1.378   1.887  1.00  0.00           C  
+HETATM    3 HH32 ACE A   1      -0.210   1.360   1.918  1.00  0.00           H  
+HETATM    4 HH33 ACE A   1       1.265   1.339   2.892  1.00  0.00           H  
+HETATM    5  C   ACE A   1       1.449   0.210   1.113  1.00  0.00           C  
+HETATM    6  O   ACE A   1       2.359  -0.441   1.549  1.00  0.00           O  
+ATOM      7  N   PRO A   2       0.894  -0.083  -0.097  1.00  0.00           N  
+ATOM      8  CD  PRO A   2       1.540  -1.088  -0.947  1.00  0.00           C  
+ATOM      9  HD1 PRO A   2       1.519  -2.060  -0.473  1.00  0.00           H  
+ATOM     10  HD2 PRO A   2       2.580  -0.825  -1.100  1.00  0.00           H  
+ATOM     11  CG  PRO A   2       0.739  -1.027  -2.247  1.00  0.00           C  
+ATOM     12  HG1 PRO A   2      -0.114  -1.696  -2.200  1.00  0.00           H  
+ATOM     13  HG2 PRO A   2       1.334  -1.311  -3.107  1.00  0.00           H  
+ATOM     14  CB  PRO A   2       0.268   0.428  -2.301  1.00  0.00           C  
+ATOM     15  HB1 PRO A   2      -0.582   0.598  -2.947  1.00  0.00           H  
+ATOM     16  HB2 PRO A   2       1.078   1.070  -2.630  1.00  0.00           H  
+ATOM     17  CA  PRO A   2      -0.054   0.747  -0.830  1.00  0.00           C  
+ATOM     18  HA  PRO A   2       0.090   1.799  -0.628  1.00  0.00           H  
+ATOM     19  C   PRO A   2      -1.533   0.475  -0.533  1.00  0.00           C  
+ATOM     20  O   PRO A   2      -2.364   1.212  -0.994  1.00  0.00           O  
+HETATM   21  N   NME A   3      -1.820  -0.605   0.213  1.00  0.00           N  
+HETATM   22  H   NME A   3      -1.064  -1.123   0.596  1.00  0.00           H  
+HETATM   23  CH3 NME A   3      -3.174  -0.962   0.578  1.00  0.00           C  
+HETATM   24 HH31 NME A   3      -3.267  -2.040   0.611  1.00  0.00           H  
+HETATM   25 HH32 NME A   3      -3.449  -0.557   1.546  1.00  0.00           H  
+HETATM   26 HH33 NME A   3      -3.851  -0.569  -0.165  1.00  0.00           H  
+TER      27      NME A   3
+CONECT    1    2
+CONECT    2    1    3    4    5
+CONECT    3    2
+CONECT    4    2
+CONECT    5    2    6    7
+CONECT    6    5
+CONECT    7    5
+CONECT   19   21
+CONECT   21   19   22   23
+CONECT   22   21
+CONECT   23   21   24   25   26
+CONECT   24   23
+CONECT   25   23
+CONECT   26   23

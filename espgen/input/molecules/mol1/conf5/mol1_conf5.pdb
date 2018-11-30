@@ -1,0 +1,49 @@
+REMARK   1 CREATED WITH FORCEBALANCE 2018-10-15
+HETATM    1 HH31 ACE A   1      -2.952   0.157   1.438  1.00  0.00           H  
+HETATM    2  CH3 ACE A   1      -3.005  -0.824   0.982  1.00  0.00           C  
+HETATM    3 HH32 ACE A   1      -3.855  -0.863   0.312  1.00  0.00           H  
+HETATM    4 HH33 ACE A   1      -3.164  -1.569   1.753  1.00  0.00           H  
+HETATM    5  C   ACE A   1      -1.760  -1.192   0.201  1.00  0.00           C  
+HETATM    6  O   ACE A   1      -1.667  -2.242  -0.373  1.00  0.00           O  
+ATOM      7  N   LYN A   2      -0.757  -0.277   0.218  1.00  0.00           N  
+ATOM      8  H   LYN A   2      -0.965   0.640   0.560  1.00  0.00           H  
+ATOM      9  CA  LYN A   2       0.383  -0.398  -0.676  1.00  0.00           C  
+ATOM     10  HA  LYN A   2       0.052  -0.812  -1.620  1.00  0.00           H  
+ATOM     11  CB  LYN A   2       1.000   0.989  -0.900  1.00  0.00           C  
+ATOM     12  HB1 LYN A   2       1.280   1.384   0.071  1.00  0.00           H  
+ATOM     13  HB2 LYN A   2       1.918   0.861  -1.458  1.00  0.00           H  
+ATOM     14  CG  LYN A   2       0.055   1.954  -1.638  1.00  0.00           C  
+ATOM     15  HG1 LYN A   2       0.250   1.893  -2.704  1.00  0.00           H  
+ATOM     16  HG2 LYN A   2      -0.972   1.637  -1.506  1.00  0.00           H  
+ATOM     17  CD  LYN A   2       0.168   3.420  -1.205  1.00  0.00           C  
+ATOM     18  HD1 LYN A   2       1.155   3.810  -1.442  1.00  0.00           H  
+ATOM     19  HD2 LYN A   2      -0.536   4.004  -1.795  1.00  0.00           H  
+ATOM     20  CE  LYN A   2      -0.096   3.682   0.282  1.00  0.00           C  
+ATOM     21  HE1 LYN A   2       0.737   3.330   0.878  1.00  0.00           H  
+ATOM     22  HE2 LYN A   2      -0.152   4.759   0.436  1.00  0.00           H  
+ATOM     23  NZ  LYN A   2      -1.294   2.987   0.757  1.00  0.00           N  
+ATOM     24  HZ1 LYN A   2      -1.463   3.218   1.718  1.00  0.00           H  
+ATOM     25  HZ2 LYN A   2      -2.100   3.299   0.246  1.00  0.00           H  
+ATOM     26  C   LYN A   2       1.475  -1.352  -0.190  1.00  0.00           C  
+ATOM     27  O   LYN A   2       2.348  -1.683  -0.949  1.00  0.00           O  
+HETATM   28  N   NME A   3       1.446  -1.720   1.104  1.00  0.00           N  
+HETATM   29  H   NME A   3       0.616  -1.534   1.615  1.00  0.00           H  
+HETATM   30  CH3 NME A   3       2.378  -2.697   1.622  1.00  0.00           C  
+HETATM   31 HH31 NME A   3       2.312  -2.704   2.702  1.00  0.00           H  
+HETATM   32 HH32 NME A   3       2.167  -3.694   1.249  1.00  0.00           H  
+HETATM   33 HH33 NME A   3       3.384  -2.430   1.332  1.00  0.00           H  
+TER      34      NME A   3
+CONECT    1    2
+CONECT    2    1    3    4    5
+CONECT    3    2
+CONECT    4    2
+CONECT    5    2    6    7
+CONECT    6    5
+CONECT    7    5
+CONECT   26   28
+CONECT   28   26   29   30
+CONECT   29   28
+CONECT   30   28   31   32   33
+CONECT   31   30
+CONECT   32   30
+CONECT   33   30

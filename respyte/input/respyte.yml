@@ -10,43 +10,38 @@
 #           |----conf2/
 #                |----mol1_conf2.pdb(or .xyz) (, mol1_conf2.espf)
 
-# keys: molecules, cheminformatics, grid_setting, restraint, set_charge, net_set, charge_equal
-
 molecules:
-    mol1 : 2
-    mol2 : 1
+    mol1 : 5
+    mol2 : 5
+    mol3 : 5
+    mol4 : 5
+    mol5 : 5
 
 cheminformatics : openeye # openeye or None
 
-grid_gen : Y # (Y/N)
+grid_info: # should provide correctly 
+    type  : fcc
+    radii : bondi 
 
-grid_setting :
-    force_gen : N # Y/N
-    type      : newfcc # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
-    radii     : bondi # bondi(default)/ modbondi
-    method    : HF
-    basis     : 6-31g*
-
-#shell_select: [3,4,5,6] # from 0
-
-boundary_select:
-    inner : 1.4
-    outer : 2.0
-    radiiType : BondiRadii
-
+boundary_select: # if given grids are fcc grids
+    inner    : 1.4
+    outer    : 2.0
+# shell_select: [3,4,5] # if given grids are msk grids
 
 restraint :
     # penalty : model2
     # a       : 0.005
 
-    # penalty : model3
-    # a       : 0.0005
-    # b       : 0.1
+    # penalty  : model3
+    # matrices :
+    #     - esp 
+    # #    - ef
+    # a        : 0.0005
+    # b        : 0.1
 
     penalty : 2-stg-fit
     matrices :
         - esp
-#        - ef
     a1      : 0.0005
     a2      : 0.001
     b       : 0.1
