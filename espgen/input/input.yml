@@ -3,22 +3,16 @@
 molecules: 
     mol1 : 5
     mol2 : 5
-    mol3 : 5
-    mol4 : 5
-    mol5 : 5
 
 charges:
     mol1 : 0 
     mol2 : 0
-    mol3 : 0
-    mol4 : 0
-    mol5 : -1
 
 cheminformatics : openeye # openeye or None or RDKit(not implemented yet)
 
 grid_setting :
     forcegen  : Y 
-    type      : newfcc # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
+    type      : mks # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
     radii     : bondi # bondi(default)/ modbondi
     method    : HF
     basis     : 6-31g*

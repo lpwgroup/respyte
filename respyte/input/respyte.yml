@@ -6,24 +6,19 @@
 # |----molecules/
 #      |----mol1/
 #           |----conf1/
-#                |----mol1_conf1.pdb(or .xyz) (, mol1_conf1.espf)
+#                |----mol1_conf1.pdb(or .xyz) , mol1_conf1.espf
 #           |----conf2/
-#                |----mol1_conf2.pdb(or .xyz) (, mol1_conf2.espf)
+#                |----mol1_conf2.pdb(or .xyz) , mol1_conf2.espf
 
 molecules:
     mol1 : 5
     mol2 : 5
-    mol3 : 5
-    mol4 : 5
-    mol5 : 5
 
 cheminformatics : openeye # openeye or None
 
 grid_info: # should provide correctly 
     type  : msk
     radii : bondi 
-
-# shell_select: [3,4,5] # if given grids are msk grids
 
 restraint :
     # penalty : model2
