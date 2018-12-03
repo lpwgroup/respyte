@@ -20,12 +20,9 @@ molecules:
 cheminformatics : openeye # openeye or None
 
 grid_info: # should provide correctly 
-    type  : fcc
+    type  : msk
     radii : bondi 
 
-boundary_select: # if given grids are fcc grids
-    inner    : 1.4
-    outer    : 2.0
 # shell_select: [3,4,5] # if given grids are msk grids
 
 restraint :
