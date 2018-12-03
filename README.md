@@ -21,8 +21,11 @@ conda install -c omnia forcebalance
 ```
 
 ## Running
-To run the code, run this command from the root folder:
-`python resp_optimizer.py`
+To calculate espf data, run this command from esp folder:
+`python esp_generator.py`
+
+After the calculation is done, move molecules folder in input folder to the input folder in resp folder and with respyte.yml file, run this command:
+`pythin resp_optimizer.py`
 
 
 #### Copyright
