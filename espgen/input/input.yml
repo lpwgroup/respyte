@@ -12,7 +12,7 @@ cheminformatics : openeye # openeye or None or RDKit(not implemented yet)
 
 grid_setting :
     forcegen  : Y 
-    type      : mks # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
+    type      : msk # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
     radii     : bondi # bondi(default)/ modbondi
     method    : HF
     basis     : 6-31g*
