@@ -525,14 +525,12 @@ class Respyte_Optimizer:
                     bpot_sym[a] += bpot_sym[i]
                     sym.append(i)
         sym = sorted(sym,reverse = True)
-
         for i in sym:
             apot_sym = np.delete(apot_sym, i, axis = 0)
             apot_sym = np.delete(apot_sym, i, axis = 1)
             bpot_sym = np.delete(bpot_sym, i)
             elem_sym = np.delete(elem_sym, i)
             atomid_sym = np.delete(atomid_sym, i)  # after forcing symmetry ,it makes singular matrix problem:/
-
         return apot_sym, bpot_sym, elem_sym, atomid_sym
 
     def apply_set_charge(self, apotInp, bpotInp, atomidInp, atomidinfo, set_charge):
@@ -543,11 +541,13 @@ class Respyte_Optimizer:
         fixedatoms = []
         setcharges = []
         for atom in set_charge:
-            setcharges.append(setcharge[atom]['charge'])
+            #setcharges.append(set_charge[atom]['charge'])
             val = {'resname': set_charge[atom]['resname'], 'atomname': set_charge[atom]['atomname']}
             for idx, atomid in enumerate(atomidInp):
                 if val in atomidinfo[atomid]:
-                    fixedatoms.append(idx)
+                    if idx not in fixedatoms:
+                        fixedatoms.append(idx)
+                        setcharges.append(set_charge[atom]['charge'])
         apot_free = copy.deepcopy(apotInp)
         bpot_free = copy.deepcopy(bpotInp)
 
