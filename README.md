@@ -21,10 +21,13 @@ conda install -c omnia forcebalance
 ```
 
 ## Running
-To calculate espf data, run this command from esp folder:
+Before running 'esp_generator.py', Please navigate 'data' folder which contains sample input folder. This will give you 
+some idea about what kind of data structure 'esp_generator.py' and 'resp_optimizer.py' can handle. 
+
+First, to calculate espf data, create input folder with appropriate data structure and run this command inside the directory where your 'input' exists:
 `python esp_generator.py`
 
-After the calculation is done, copy 'molecules' folder in 'input' into 'respyte/input/' and with an appropriate respyte.yml file, run this command from respyte folder:
+If the calculation is successfully done, you can find files with .espf extension in each sub folder,'input/molecules/mol(i)/conf(j)'. Then you are ready to go to the next step. Add respyte.yml, input file for 'resp_optimizer.py', inside 'input/' and run this command:
 `python resp_optimizer.py`
 
 
