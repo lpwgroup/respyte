@@ -19,8 +19,9 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'implementation of open-source version of RESP method'
-copyright = "2018, Hyesu Jang"
+project = 'Implementation of open-source vrsion of RESP method'
+copyright = ("2019, Hyesu Jang. Project structure based on the "
+             "Computational Molecular Science Python Cookiecutter version 1.0")
 author = 'Hyesu Jang'
 
 # The short X.Y version
@@ -152,7 +153,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'respyte', 'respyte Documentation',
-     author, 'respyte', 'implementation of open-source version of RESP method',
+     author, 'respyte', 'Implementation of open-source vrsion of RESP method',
      'Miscellaneous'),
 ]
 

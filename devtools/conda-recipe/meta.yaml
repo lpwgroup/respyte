@@ -1,5 +1,5 @@
 package:
-  name: restpyte_workshop
+  name: respyte
   version: "0.0.0"
 
 source:
@@ -20,7 +20,7 @@ test:
   requires:
     - pytest
   imports:
-    - restpyte_workshop
+    - respyte
 
 about:
   home: add_url_here
