@@ -1,6 +1,6 @@
 """
 respyte
-implementation of open-source version of RESP method
+Implementation of open-source vrsion of RESP method
 """
 
 # Make Python 2 and 3 imports work the same

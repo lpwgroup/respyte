@@ -43,8 +43,6 @@ except NameError:
 # |   ForceBalance copyright notice and 3-clause BSD license.          |#
 # |   Please see https://github.com/leeping/forcebalance for details.  |#
 # |                                                                    |#
-# |   ! Then it is adapted by Hyesu for inclusion in Respyte !         |#
-# |                                                                    |#
 # |   Feedback and suggestions are encouraged.                         |#
 # |                                                                    |#
 # |   What this is for:                                                |#

@@ -1,0 +1,32 @@
+# This file is a sample input.yml, input file for esp_generator.py
+# 'input.yml' should be included in 'input' directory with 'molecules' directory to run esp_generator.
+
+# In molecules, the number of molecules and the number of conformers for each molecule are assigned. 
+# For example, if the user wants to generate espf data for 2 different molecules with 5 conformers each, 
+# molecules is like below. (Each coordinate file should be either PDB or Mol2 file format and should be 
+# located in molecules/mol(i)/mol(j)/ ((i), (j) is integer) with its filename, mol(i)_mol(j).pdb(or .mol2)  
+# molecules : 
+#     mol1 : 5
+#     mol2 : 5
+molecules:
+    mol1 : 1
+# In charges, the user should provide charge of each molecule. If not, it consider all molecules as neutral.
+# if mol1 is neutral and mol2 has -1 charge,  
+# charges :
+#     mol1 :  0
+#     mol2 : -1
+charges :
+    mol1 : 0
+# In Cheminformatics, user can choose 'openeye' or 'rdkit' or 'None' 
+# But for now,  'None' option is not implemented yet, please consider use open-source 'rdkit' instead'
+cheminformatics : openeye
+
+# In grid_Setting, (explanation) 
+grid_setting :  
+    forcegen  : Y
+    type      : msk # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
+    radii     : bondi # bondi(default)/ modbondi
+    method    : HF
+    basis     : 6-31g*
+    pcm       : Y
+    solvent   : water

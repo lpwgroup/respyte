@@ -6,7 +6,6 @@ http://bioserv.rpbs.univ-paris-diderot.fr
 This is free software. You can use it, modify it, distribute it.
 However, thanks for the feedback for any improvement you  bring to it!
 Changed by Lee-Ping from dict to OrderedDict.
-Then adapted by Hyesu for inclusion in Respyte.
 
 mol2_set:
   A class to manage multipe mol2 files

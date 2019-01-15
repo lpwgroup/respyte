@@ -1,31 +1,27 @@
-
-import os,sys, copy
+import os, sys, copy
 import numpy as np
 import yaml
 from warnings import warn
-
 from collections import OrderedDict, namedtuple, Counter
+
 # Set default residue charges for amino acids (AMBER force field)
-aminoAcidUnits = [#'ACE', 'NME', 'NHE',
-                  'ALA', 'ARG', 'ASN', 'ASP', 'ASH', # ASH: ASP protonated
-                  'CYS', 'CYM', 'CYX' , # CYM: deprotonated(-1?), CYX: S-S crosslinking
+amberAminoAcidUnits = ['ALA', 'ARG', 'ASN', 'ASP', 'ASH', # ASH: ASP protonated
+                  'CYS', 'CYM', 'CYX' , # CYM: deprotonated, CYX: S-S crosslinking
                   'GLU', 'GLH', 'GLN', 'GLY',
                   'HID', 'HIE', 'HIP', # HIP: protonated
                   'ILE', 'LEU', 'LYS', 'LYN', # LYN: neutral
                   'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
-ResidueCharge = []
-for residue in aminoAcidUnits:
+residueCharge = []
+for residue in amberAminoAcidUnits:
     if residue == 'ARG' or residue == 'LYS' or residue == 'HIP':
-        ResidueCharge.append(1)
+        residueCharge.append(1)
     elif residue == 'ASP' or residue == 'GLU' or residue == 'CYM':
-        ResidueCharge.append(-1)
-    # elif residue == 'ACE' or residue == 'NME' or residue == 'NHE': # but how to deal with this??
-    #     pass
+        residueCharge.append(-1)
     else:
-        ResidueCharge.append(0)
-ResidueChargeDict = OrderedDict()
-for idx, i in enumerate(aminoAcidUnits):
-    ResidueChargeDict[i] = ResidueCharge[idx]
+        residueCharge.append(0)
+amberResidueChargeDict = OrderedDict()
+for idx, i in enumerate(amberAminoAcidUnits):
+    amberResidueChargeDict[i] = residueCharge[idx]
 
 class Input:
     def __init__(self, inputFile=None):
@@ -38,40 +34,35 @@ class Input:
             self.restraintinfo = {}
             self.gridinfo = None
         else:
-            self.readinput(inputFile)
+            self.readinp(inputFile)
 
-    def readinput(self, inputFile):
-
+    def readinp(self, inputFile):
         inp = yaml.load(open(inputFile))
-
-        """ Read Cheminformatics """
+        # Read cheminformatics
         if 'cheminformatics' in inp:
-            if inp['cheminformatics'] == 'openeye' or inp['cheminformatics'] == 'rdkit':
+            if inp['cheminformatics'] == 'openeye' or inp['cheminformatics'] == 'rdkit' or inp['cheminformatics'] == 'None':
                 cheminformatics = inp['cheminformatics']
             else:
                 raise NotImplementedError("%s is not implemented. Please choose openeye, rdkit or None:) " % inp['cheminformatics'])
         else:
             cheminformatics = None
 
-        """ Read set_charge for charge freezing """
+        # Read set_charge for charge freezing
         if 'set_charge' in inp:
             set_charge= inp['set_charge']
         else:
             set_charge = {}
 
-        """
-        From net_set, define resChargeDict.
-        For small molecule, resname is like mol1, mol2, ... and atomname is the same with element name:)
-        """
-        resChargeDict = copy.deepcopy(ResidueChargeDict)
-        if 'net_set'  in inp:
+        # From net_set, define resChargeDictself.
+        # for small molecule, resname is mol1, mol2, ... and atomname = elem
+        resChargeDict = copy.deepcopy(amberResidueChargeDict)
+        if 'net_set' in inp:
             net_set = inp['net_set']
             resChargeDict.update(net_set)
-
         if 'charges' in inp:
-            resChargeDict.update(inp['charges']) # have a problem. will be back after changing molecule class
+            resChargeDict.update(inp['charges'])
 
-        """"atomnames and residue names whose charges are set to be equal:)"""
+        # atomnames and resnames whose charges are set to be equal
         if 'charge_equal' in inp:
             charge_equal_inp = inp['charge_equal']
         else:
@@ -84,18 +75,18 @@ class Input:
             newcharge_equal.append([atomname, resname])
         charge_equal = newcharge_equal
 
-        """ Check how many molecules and how many conformers are set to be fitted """
+        # Check how many molecules and how many conformers are set to be fitted
         nmols = []
         for mol in inp['molecules']:
             nmols.append(int(inp['molecules'][mol]))
 
-        """ Read charge fit model (Model2, Model3, 2-stg-fit)"""
+        # Read charge fit model (Model2, Model3, 2-stg-fit)
         restraintinfo = inp['restraint']
 
         gridinfo = {}
-        if 'grid_info' in inp:
-            gridinfo['type'] = inp['grid_info']['type'] # msk or fcc
-            gridinfo['radii'] = inp ['grid_info']['radii'] # bondi, modbondi, Alvarez
+        # if 'grid_info' in inp:
+        #     gridinfo['type'] = inp['grid_info']['type']
+        #     gridinfo['radii'] = inp ['grid_info']['radii']
 
         # if 'shell_select' in inp:
         #    gridinfo['shell_select'] = inp['shell_select']

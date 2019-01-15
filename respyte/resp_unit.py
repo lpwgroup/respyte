@@ -10,7 +10,7 @@ try:
 except ImportError:
     warn(' The Openeye module cannot be imported. ( Please provide equivGoups and listofpolar manually.)')
 from molecule import *
-from readinp import Input
+from readinp_resp import Input
 
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
@@ -570,7 +570,7 @@ class Respyte_Optimizer:
         try:
             qpot_free = sci.linalg.solve(apot_free,bpot_free)
         except np.linalg.LinAlgError as err:
-            print('Singular matrix error:/ ')
+            print(' Singular matrix error:/ ')
             qpot_free = sci.linalg.lstsq(apot_free, bpot_free)[0] # wonder if this looks right/.... be back later
 
         qpot_expand = np.zeros((len(apotInp)))
@@ -596,7 +596,7 @@ class Respyte_Optimizer:
 ##########################################################################################################
 ###                       Charge fit models (Model2, Model3, two-stg-fit)                              ###
 ##########################################################################################################
-    def write_mol2(self, atomname, resid, resname, elem, ftype, xyz, qpot, outfilenm = 'out.mol2'):
+    def write_mol2(self, atomname, resid, resname, elem, xyz, qpot, outfilenm = 'out.mol2'):
         row_format = "%7d %-5s    %9.4f %9.4f %9.4f %-7s %2d %4s  %12.6f"
         atoms = []
         for elm in elem:
@@ -673,7 +673,7 @@ class Respyte_Optimizer:
         writeMol2 = False
         path = os.getcwd()
         if os.path.isdir('%s/resp_output' % path):
-            print('resp_output dir already exists!!! will overwrite anyway:/')
+            print(' resp_output dir already exists!!! will overwrite anyway:/')
             writeMol2 = True
         else:
             writeMol2 = True
@@ -714,7 +714,7 @@ class Respyte_Optimizer:
                 print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
-                                    self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
+                                    self.molecule.elems[idx], xyz, qpots[idx],
                                     outfilenm = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                 config += 1
             loc += i
@@ -796,7 +796,7 @@ class Respyte_Optimizer:
         writeMol2 = False
         path = os.getcwd()
         if os.path.isdir('%s/resp_output' % path):
-            print('resp_output dir already exists!!! will overwrite anyway:/')
+            print(' resp_output dir already exists!!! will overwrite anyway:/')
             writeMol2 = True
         else:
             writeMol2 = True
@@ -836,7 +836,7 @@ class Respyte_Optimizer:
                 print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
-                                    self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
+                                    self.molecule.elems[idx], xyz, qpots[idx],
                                     outfilenm = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                 config += 1
             loc += i
@@ -952,7 +952,7 @@ class Respyte_Optimizer:
         writeMol2 = False
         path = os.getcwd()
         if os.path.isdir('%s/resp_output' % path):
-            print('resp_output dir already exists!!! will overwrite anyway:/')
+            print(' resp_output dir already exists!!! will overwrite anyway:/')
             writeMol2 = True
         else:
             writeMol2 = True
@@ -997,7 +997,7 @@ class Respyte_Optimizer:
                 print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
                 if writeMol2 is True:
                     self.write_mol2(self.molecule.atomnames[idx], self.molecule.resnumbers[idx], self.molecule.resnames[idx],
-                                    self.molecule.elems[idx], self.molecule.ftype, xyz, qpots[idx],
+                                    self.molecule.elems[idx], xyz, qpots[idx],
                                     outfilenm = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                 config += 1
             loc += i

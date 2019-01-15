@@ -1,91 +1,94 @@
-# ForceBalance is a dependency
 from molecule import *
-from readinp import Input
-from molecule_resp import Molecule_HJ, Molecule_OEMol
+from readinp_resp import Input
+from molecule_resp import Molecule_respyte, Molecule_OEMol
 from select_grid import *
 
 from resp_unit import *
 
+
 def main():
 
-    inp = Input()
-    inp.readinput('input/respyte.yml')
-    # inner, outer boundary
-
-    if inp.cheminformatics =='openeye':
-        molecule = Molecule_OEMol()
+    # cwd = current working directory in which input folder exists
+    cwd = os.getcwd()
+    # check if the current working idr contains input folder
+    print('\n')
+    print('---------------------------------------------------------')
+    print(' 1. Reading  input files and folders.                    ')
+    print('---------------------------------------------------------')
+    if os.path.isdir("%s/input" % cwd):
+        print(' Found the input folder. Now read input/input.yml')
     else:
-        molecule = Molecule_HJ()
+        print(' Failed to find input folder. Should have input(folder) containing input.yml and molecules(folder)')
+    # read respyte.yml
+    inp = Input('%s/input/respyte.yml' % (cwd))
+
+    # Create molecule object
+    if inp.cheminformatics == 'openeye':
+        molecule = Molecule_OEMol()
+    elif inp.cheminformatics == 'rdkit':
+        raise NotImplementedError('Sorry. Using rdkit hasnt been implemented! :(')
+    else:
+        molecule = Molecule_respyte()
     molecule.addInp(inp)
 
-    cwd = os.getcwd() # the path where resp_optimizer.py is sitting
-
-    for idx, i in enumerate(inp.nmols): # need to trim a bit more:
+    for idx, i in enumerate(inp.nmols):
         molN = 'mol%d' % (idx+1)
-        wkd = '%s/input/molecules/%s/' %(cwd,molN)
+        wkd = '%s/input/molecules/%s' % (cwd, molN)
         coordfilepath = []
         espffilepath = []
         listofselectedPts = []
         for j in range(i):
             confN = 'conf%d' % (j+1)
-            path = wkd + '%s/' % (confN)
-
-            if os.path.isfile( path + '%s_%s.pdb' % (molN, confN)):
-                print('Found %s_%s.pdb' % (molN, confN) )
-                coordpath = path + '%s_%s.pdb' % (molN, confN)
-                ftype = 'pdb'
+            path = wkd + '/%s' % (confN)
+            pdbfile = path + '/%s_%s.pdb' % (molN, confN)
+            mol2file = path + '/%s_%s.mol2' % (molN, confN)
+            xyzfile = path + '/%s_%s.xyz' % (molN, confN)
+            if os.path.isfile(pdbfile):
+                coordpath = pdbfile
                 coordfilepath.append(coordpath)
-            elif os.path.isfile( path + '%s_%s.xyz' % (molN, confN)):
-                print('Found %s_%s.xyz' % (molN, confN) )
-                coordpath = path + '%s_%s.xyz' % (molN, confN)
-                ftype = 'xyz'
+            elif os.path.isfile(mol2file):
+                coordpath = mol2file
                 coordfilepath.append(coordpath)
+            elif os.path.isfile(xyzfile):
+                coordpath = xyzfile
+                coordfilepath.append(coordpath)
+                print(' This folder doesn not contain pdb or mol2 file format. ')
+            else:
+                raise RuntimeError(" Coordinate file should have pdb or mol2 file format! ")
 
-            espfpath = path + '%s_%s.espf' %(molN, confN)
+            espfpath = path + '/%s_%s.espf' %(molN, confN)
             if not os.path.isfile(espfpath):
-                raise RuntimeError('%s file doesnt exist!!! '% espfpath)
+                raise RuntimeError(' %s file doesnt exist!!! '% espfpath)
             else:
                 espffilepath.append(espfpath)
-            # listofselectedPts
+
             if 'boundary_select' in inp.gridinfo:
+                radii = inp.gridinfo['boundary_select']['radii']
                 inner = inp.gridinfo['boundary_select']['inner']
                 outer = inp.gridinfo['boundary_select']['outer']
-                radii = inp.gridinfo['radii']
-                # if inp.gridinfo['radii'] =='bondi':
-                #     radii = 'BondiRadii'
-                # elif inp.gridinfo['radii'] == 'Alvarez':
-                #     radii = 'AlvarezRadii'
                 tmpmol = Molecule(coordpath)
                 pts = []
-                with open(espfpath,'r') as espffs:
-                    for i, line in enumerate(espffs):
+                with open(espfpath, 'r') as espff:
+                    for i, line in enumerate(espff):
                         fields = line.strip().split()
                         numbers = [float(field) for field in fields]
                         if (len(numbers)==4):
                             xyz = [x for x in numbers[0:3]]
                             pts.append(xyz)
                 selectedPts = SelectGridPts(tmpmol,inner,outer,pts, radii )
-                print('Read %d pts from %s_%s.espf' % (len(pts), molN, confN))
-                print('select pts: inner =%0.4f, outer = %0.4f' %(inner, outer))
-                print('Use %d pts out of %d pts' %(len(selectedPts), len(pts)))
+                print(' Read %d pts from %s_%s.espf' % (len(pts), molN, confN))
+                print(' select pts: inner =%0.4f, outer = %0.4f' %(inner, outer))
+                print(' Use %d pts out of %d pts' %(len(selectedPts), len(pts)))
             else:
                 selectedPts = None
             listofselectedPts.append(selectedPts)
-        if ftype is 'xyz':
-            # print(coordfilepath)
-            molecule.addXyzFiles(*coordfilepath)
-        elif ftype is 'pdb':
-            molecule.addPdbFiles(*coordfilepath)
-        # print('check')
-        # print([len(listofselectedPts[i]) for i in range(5)]); input()
-        # print(listofselectedPts)
-        # input()
-        molecule.addEspf(*espffilepath, selectedPts = listofselectedPts) # changed
-
-
-
-    os.chdir(cwd) ####Let see if it's right...
-    print('resp calculation is running on %s' % cwd)
+        molecule.addCoordFiles(*coordfilepath)
+        molecule.addEspf(*espffilepath, selectedPts = listofselectedPts)
+    print('---------------------------------------------------------')
+    print(' 2. Charge fitting to QM data                            ')
+    print('---------------------------------------------------------')
+    os.chdir(cwd)
+    print(' resp calculation is running on %s' % cwd)
     cal = Respyte_Optimizer()
     cal.addInp(inp)
     cal.addMolecule(molecule)

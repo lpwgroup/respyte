@@ -1,13 +1,4 @@
-import os,sys
-from warnings import warn
-import math
-import scipy as sci
-import numpy as np
 from molecule import *
-try:
-    import openeye.oechem as oechem
-except ImportError:
-    warn(' The Openeye module cannot be imported. ( Please provide equivGoups and listofpolar manually.)')
 
 BondiRadii = [1.2, 1.4, # exchanged None to 2.0
               1.81, 2.0, 2.0, 1.70, 1.55, 1.52, 1.47, 1.54,
@@ -26,20 +17,19 @@ AlvarezRadii = [1.20, 1.43,
 PolarHradii = 0.95 # in Angstrom
 bohr2Ang = 0.52918825
 
+
 def SelectGridPts(mol, inner, outer, pts, radiiType):
-    """ select pts inside the region definded by inner and outer radius of all atoms in xyzs.
-    For now, let's say mol is forcebalance molecule object """
     if radiiType == 'bondi':
         radiiType = BondiRadii
     elif radiiType == 'Alvarez':
         radiiType = AlvarezRadii
     culled = []
     xyzs = mol.xyzs[0]
-    innersSq  = []
+    innersSq = []
     outersSq = []
-    atomicnum =[list(PeriodicTable.keys()).index(mol.elem[i])+1 for i in range(mol.na)]
+    atomicNum = [list(PeriodicTable.keys()).index(mol.elem[i])+1 for i in range(mol.na)]
 
-    for elem in atomicnum:
+    for elem in atomicNum:
         radii = float(radiiType[int(elem)-1])
         innersSq.append(radii*radii*inner*inner)
         outersSq.append(radii*radii*outer*outer)

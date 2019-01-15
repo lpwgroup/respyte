@@ -43,7 +43,6 @@
     ----------------------------
     Modified by KA Beauchamp for inclusion in MSMBuilder.
     Adapted by Lee-Ping Wang for inclusion in ForceBalance.
-    Copied by Hyesu Jang for inclusion in Respyte.  
 """
 
 from builtins import hex
