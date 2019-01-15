@@ -1,18 +1,26 @@
 """
 respyte
-implementation of open-source version of RESP method
+Implementation of open-source vrsion of RESP method
 """
 from setuptools import setup
 import versioneer
 
-DOCLINES = __doc__.split("\n")
+short_description = __doc__.split("\n")
+
+try:
+    with open("README.md", "r") as handle:
+        long_description = handle.read()
+except:
+    long_description = "\n".join(short_description[2:]),
+
 
 setup(
     # Self-descriptive entries which should always be present
     name='respyte',
     author='Hyesu Jang',
-    description=DOCLINES[0],
-    long_description="\n".join(DOCLINES[2:]),
+    description=short_description[0],
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     version=versioneer.get_version(),
     cmdclass=versioneer.get_cmdclass(),
     license='BSD-3-Clause',

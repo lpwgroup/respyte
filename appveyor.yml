@@ -1,12 +1,12 @@
 environment:
 
   matrix:
-    - PYTHON: "C:\\Miniconda35-x64"
-      PYTHON_VERSION: "3.5"
-      PYTHON_ARCH: "64"
-
     - PYTHON: "C:\\Miniconda36-x64"
       PYTHON_VERSION: "3.6"
+      PYTHON_ARCH: "64"
+
+    - PYTHON: "C:\\Miniconda37-x64"
+      PYTHON_VERSION: "3.7"
       PYTHON_ARCH: "64"
   
 
@@ -15,26 +15,30 @@ install:
   - python -m ensurepip
   - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
   
+    # Add conda-forge channel
+  - conda config --add channels conda-forge
+  
 
     # Always run commands without asking
   - conda config --set always_yes yes
 
     # Try to update conda first to avoid odd dependency clashes
   - conda update --all
-  - conda install conda-build
 
     # Create test environment for package
-  - conda create -n test python=%PYTHON_VERSION% pip pytest pytest-cov
+  - python devtools\\scripts\\create_conda_env.py -n=test -p=%PYTHON_VERSION% devtools\\conda-envs\\test_env.yaml
+
+    # Activate the test environment
   - activate test
-    
-    # Install any pip only modules
-  - pip install codecov
 
     # Build and install package
-  - conda build --quiet --python=%PYTHON_VERSION% devtools\\conda-recipe
-  - conda install --use-local respyte
+  - python setup.py develop --no-deps
+
   
 build: false
 
 test_script:
   - pytest -v --cov=respyte respyte\\tests
+
+on_success:
+  - codecov
