@@ -1,117 +1,62 @@
 language: python
 
+# Run jobs on container-based infrastructure, can be overridden per job
+dist: trusty
+
 matrix:
   include:
-
     # Extra includes for OSX since python language is not available by default on OSX
     - os: osx
       language: generic
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=1
-        - PYTHON_VER=3.7
+      env: PYTHON_VER=3.5
     - os: osx
       language: generic
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=2
-        - PYTHON_VER=3.7
-    - os: osx
-      language: generic
-      env:
-        - LICENSE=2
-        - DEPEND_SOURCE=3
-        - PYTHON_VER=3.7
-    - os: osx
-      language: generic
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=1
-        - PYTHON_VER=3.6
-    - os: osx
-      language: generic
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=2
-        - PYTHON_VER=3.6
-    - os: osx
-      language: generic
-      env:
-        - LICENSE=2
-        - DEPEND_SOURCE=3
-        - PYTHON_VER=3.6
-
-    - os: linux
-      python: 3.6
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=1
-        - PYTHON_VER=3.7
-
-    - os: linux
-      python: 3.6
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=2
-        - PYTHON_VER=3.7
-
-    - os: linux
-      python: 3.6
-      env:
-        - LICENSE=2
-        - DEPEND_SOURCE=3
-        - PYTHON_VER=3.7
+      env: PYTHON_VER=3.6
 
     - os: linux
       python: 3.5
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=1
-        - PYTHON_VER=3.6
-
+      env: PYTHON_VER=3.5
     - os: linux
-      python: 3.5
-      env:
-        - LICENSE=1
-        - DEPEND_SOURCE=2
-        - PYTHON_VER=3.6
-
-    - os: linux
-      python: 3.5
-      env:
-        - LICENSE=2
-        - DEPEND_SOURCE=3
-        - PYTHON_VER=3.6
+      python: 3.6
+      env: PYTHON_VER=3.6
 
 before_install:
-    # Make sure pip is around, on OSX Travis we have to do some shenanigans
-  - if [[ "$TRAVIS_OS_NAME" == "osx" && ! $(command -v pip) ]]; then source cihelpers/osx_travis_py_helper.sh; fi
+    # Additional info about the build
+  - uname -a
+  - df -h
+  - ulimit -a
 
-    # Install a few requirements
-  - pip install pyyaml cookiecutter
-
-    # Build out the cookiecutter from settings
-  - python tests/setup_cookiecutter.py default_project $LICENSE $DEPEND_SOURCE
-
-    # Change into new project directory
-  - cd default_project
+    # Install the Python environment
+  - source devtools/travis-ci/before_install.sh
+  - python -V
 
 install:
-  - python ../tests/run_yaml.py .travis.yml before_install before_install.travis
-  - source before_install.travis
 
-  - pip install pyyaml
-  - python ../tests/run_yaml.py .travis.yml install install.travis
-  - source install.travis
+  #   # Create test environment for package
+  # - python devtools/scripts/create_conda_env.py -n=test -p=$PYTHON_VER devtools/conda-envs/test_env.yaml
+  #   # Activate the test environment
+  # - conda activate test
+  #   # Build and install package
+  # - python setup.py develop --no-deps
+
+install:
+
+    # Create test environment for package
+  - conda create -n test python=$PYTHON_VER pip pytest pytest-cov
+  - conda activate test
+
+    # Install pip only modules
+  - pip install codecov
+
+    # Build and install package
+  - conda build --python=$PYTHON_VER devtools/conda-recipe
+  - conda install --use-local respyte
 
 script:
-  - pip install pyyaml
-  - python ../tests/run_yaml.py .travis.yml script script.travis
-  - source script.travis
+  - pytest -v --cov=respyte respyte/tests/
 
+notifications:
+    email: false
 
-after_install:
-
-    # Build the docs
-  - cd docs
-  - make html
+after_success:
+  - codecov
