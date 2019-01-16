@@ -55,7 +55,7 @@ except ImportError:
 
 # import molecule module copied from ForceBalance package
 # just in case a user doesn't use any cheminformatics
-from molecule import *
+from .molecule import *
 
 def GenerateVdwNeighborList( mol, atomi, scalefac, moltype = 'OEMol'):
     '''Scaling the atomic radii by scalefac, this function returns a list of OEAtoms
