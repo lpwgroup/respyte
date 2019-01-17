@@ -44,6 +44,7 @@ import math
 import scipy as sci
 import numpy as np
 from warnings import warn
+import copy
 try:
     import rdkit.Chem as rdchem
 except ImportError:
@@ -354,7 +355,22 @@ def GenerateBoxMinMax( mol, moltype = 'OEMol'):
                 boxmax[crd]=atomMax[crd]
     return boxmin, boxmax
 
-def GenerateFaceCenteredGrid( boxmin, boxmax, space=0.5):
+def MoleculeCenter(mol, moltype='OEMol'):
+    if moltype is 'OEMol':
+        xyzs = []
+        for atom in mol.GetAtoms():
+            xyz = oechem.OEFloatArray(3)
+            mol.GetCoords(atom,xyz)
+            xyzs.append(xyz)
+        xyzs = np.array(xyzs)
+        center = np.average(xyzs,axis = 0)
+
+    elif moltype is 'RDMol':
+        xyzs = mol.GetConformer().GetPositions()
+        center = np.average(xyzs,axis = 0)
+    return center
+
+def GenerateFaceCenteredGrid( boxmin, boxmax, molcenter, space=0.5):
     '''Generates a Face-Centered Cubic (FCC) Grid within the cubic box delineated
     by xyz coords boxmin and boxmax, with spacing "space" between grid points.
     Note that this is the full FCC grid with no points removed around the molecule.
@@ -364,16 +380,21 @@ def GenerateFaceCenteredGrid( boxmin, boxmax, space=0.5):
       space: the spacing between grid points.
     Returns a list of triples of floats, each one the xyz coords of a grid
       point in the Face-Centered Cubic Grid enclosing the molecule.
-'''
+    # Modified by Hyesu
+    '''
     # factors pertaining to grid spacing
     root2= np.sqrt(2.0)
     dx = space*root2
     delta= space/root2
-    #
+    # find reference pts from molecule center
+    newboxmin = copy.deepcopy(molcenter)
+    for i in range(3):
+        while (newboxmin[i] > boxmin[i]):
+            newboxmin[i] -= dx
     pts = []
     # loop over z
     ztoggle = False
-    z = boxmin[2]
+    z = newboxmin[2]
     while (z<boxmax[2]):
         ztoggle = not ztoggle
         if ztoggle:
@@ -381,13 +402,13 @@ def GenerateFaceCenteredGrid( boxmin, boxmax, space=0.5):
         else:
             ytoggle = True
         # loop over y
-        y = boxmin[1]
+        y = newboxmin[1]
         while (y<boxmax[1]):
             ytoggle = not ytoggle
             if ytoggle:
-                x = boxmin[0]+delta
+                x = newboxmin[0]+delta
             else:
-                x = boxmin[0]
+                x = newboxmin[0]
             # loop over x
             while (x<boxmax[0]):
                 #print(x,y,z)
@@ -507,7 +528,8 @@ def GenerateGridPointSetAroundOEMol(mol, options, moltype='OEMol'):
     # based on the cutoffs, get the min and max box dimensions for the grid
     boxmin, boxmax = GenerateBoxMinMax(molPrep, moltype)
     # Generate face centered cubic grid within the box
-    gridPts = GenerateFaceCenteredGrid( boxmin,  boxmax, options['space'] )
+    molcenter = MoleculeCenter(mol, moltype)
+    gridPts = GenerateFaceCenteredGrid( boxmin,  boxmax, molcenter,options['space'] )
     # now cull the grid to fit between inner and outer radii of the atoms
     cullPts = CullGridPts( molPrep, gridPts, moltype)
     return cullPts
