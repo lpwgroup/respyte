@@ -137,7 +137,7 @@ class Molecule_respyte:
         Output should be like [[[indices], resname, netcharge], ...]
         """
         idxof1statm = [0]
-        resname = atomidinfo[atomid[0]][0]['resname']
+        resname = atomidinfo[atomid[0]][0]['resname'] # I think this is also problematic..
         resnmof1statm = [resname]
         check = [resnumber[0]]
         for idx, resn in enumerate(resnumber):
@@ -180,89 +180,114 @@ class Molecule_respyte:
         return idxof1statm, resnameof1statm
 
     def addCoordFiles(self, *coordFiles):
-        xyzs  = []
-        firstconf = True
-        for coordFile in coordFiles:
-            fbmol = Molecule(coordFile)
-            xyz = fbmol.xyzs[0]
-            xyz = np.array(xyz)/bohr2Ang
-            xyzs.append(xyz)
-            if firstconf is True:
-                firstconf is False
-                atomicNum = []
-                elem = fbmol.elem
-                if 'resid' not in list(fbmol.Data.keys()):
-                    print(' Are you using xyz file? will assing resid, resname,atomname for you!')
-                    resnumber = [1 for i in elem]
-                    resname = list('MOL' for i in elem)
-                    atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem) ]
-                else:
-                    resnumber = fbmol.resid
-                    resname = fbmol.resname
-                    atomname = fbmol.atomname
-                for elm in elem:
-                    atomicNum.append(list(PeriodicTable.keys()).index(elm) + 1 )
-                atomid = []
-                if len(self.atomidinfo) == 0:
-                    atmid = 1
-                else:
-                    atmid = max(list(self.atomidinfo.keys()))
-                # if resname is 'MOL', assign resname to be moli
-                if resname == list('MOL' for i in elem):
-                    fnm = Path(coordFile).stem
-                    newresname = fnm.split('_')[0]
-                    print(' Is this pdb file generated from esp_generator?\n')
-                    print(' It reassigns its resname to %s not to confuse with other molecules while forcing symmetry.' % newresname)
-                    resname = list(newresname for i in elem)
-                for res, atom in zip(resname, atomname):
-                    val = {'resname': res, 'atomname': atom}
-                    if len(self.atomidinfo) == 0:
-                        atomid.append(atmid)
-                        self.atomidinfo[atmid] = [val]
-                        atmid += 1
-                    elif any(val in v for v in list(self.atomidinfo.values())):
-                        for k, v in self.atomidinfo.items():
-                            if val in v:
-                                atomid.append(int(k))
-                    else:
-                        atomid.append(atmid)
-                        self.atomidinfo[atmid] = [val]
-                        atmid += 1
-                if self.inp is not None:
-                    equiv_ids = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
-                else:
-                    equiv_ids = []
-                # And modify atomid and atomidinfo so that equivalent atoms can have the same id.
-                newatomid = atomid.copy()
-                newatomidinfo = self.atomidinfo.copy()
-                for equiv_id in equiv_ids:
-                    newid = equiv_id[0]
-                    for i in equiv_id[1:]:
-                        newatomid = [newid if x ==i else x for x in newatomid]
-                        for j in self.atomidinfo[i]:
-                            newatomidinfo[newid].append(j)
-                        del newatomidinfo[i]
-                self.atomids.append(newatomid)
-                self.atomidinfo = newatomidinfo
-                self.elems.append(atomicNum)
-                self.resnames.append(resname)
-                self.atomnames.append(atomname)
-                self.resnumbers.append(resnumber)
-        self.nmols.append(len(xyzs))
-        for xyz in xyzs:
-            self.xyzs.append(xyz)
-        if self.inp is not None:
-            chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
-        else:
-            indices = list(range(len(elem)))
-            charge = None
+        if len(coordFiles) == 0:
+            print('No conformer is given? ')
+            self.atomids.append([])
+            self.elems.append([])
+            self.resnames.append([])
+            self.atomnames.append([])
+            self.resnumbers.append([])
+            self.listofpolars.append([])
+            xyzs = []
+            self.nmols.append(len(xyzs))
+            indices = []
+            charge = 0
             number = len(self.elems)+1
             resname = 'mol%d' %(number)
             chargeinfo = [[indices, resname, charge]]
-        self.listofchargeinfo.append(chargeinfo)
-        # For now, when cheminformatics is not used, ignore polar atoms
-        listofpolar = []
-        self.listofpolars.append(listofpolar)
+            self.listofchargeinfo.append(chargeinfo)
+        else:
+            xyzs  = []
+            firstconf = True
+            for coordFile in coordFiles:
+                fbmol = Molecule(coordFile)
+                xyz = fbmol.xyzs[0]
+                xyz = np.array(xyz)/bohr2Ang
+                xyzs.append(xyz)
+                if firstconf is True:
+                    firstconf is False
+                    atomicNum = []
+                    elem = fbmol.elem
+                    if 'resid' not in list(fbmol.Data.keys()):
+                        print(' Are you using xyz file? will assing resid, resname,atomname for you!')
+                        resnumber = [1 for i in elem]
+                        resname = list('MOL' for i in elem)
+                        atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem) ]
+                    else:
+                        resnumber = fbmol.resid
+                        resname = fbmol.resname
+                        atomname = fbmol.atomname
+                    for elm in elem:
+                        atomicNum.append(list(PeriodicTable.keys()).index(elm) + 1 )
+                    atomid = []
+                    if len(self.atomidinfo) == 0:
+                        atmid = 1
+                    else:
+                        atmid = max(list(self.atomidinfo.keys()))
+                    # if resname is 'MOL', assign resname to be moli
+                    if resname == list('MOL' for i in elem):
+                        fnm = Path(coordFile).stem
+                        newresname = fnm.split('_')[0]
+                        print(' Is this coord file generated from esp_generator? The residue name is MOL.\n')
+                        print(' It reassigns the residue name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
+                        resname = list(newresname for i in elem)
+                        num = 1
+                        for res, atom in zip(resname, elem):
+                            val = {'resname': res, 'atomname':'%s%d' %(atom, num) }
+                            atomid.append(atmid)
+                            self.atomidinfo[atmid] = [val]
+                            atmid += 1
+                            num += 1
+                    else:
+                        for res, atom in zip(resname, atomname):
+                            val = {'resname': res, 'atomname': atom}
+                            if len(self.atomidinfo) == 0:
+                                atomid.append(atmid)
+                                self.atomidinfo[atmid] = [val]
+                                atmid += 1
+                            elif any(val in v for v in list(self.atomidinfo.values())):
+                                for k, v in self.atomidinfo.items():
+                                    if val in v:
+                                        atomid.append(int(k))
+                            else:
+                                atomid.append(atmid)
+                                self.atomidinfo[atmid] = [val]
+                                atmid += 1
+                    if self.inp is not None:
+                        equiv_ids = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                    else:
+                        equiv_ids = []
+                    # And modify atomid and atomidinfo so that equivalent atoms can have the same id.
+                    newatomid = atomid.copy()
+                    newatomidinfo = self.atomidinfo.copy()
+                    for equiv_id in equiv_ids:
+                        newid = equiv_id[0]
+                        for i in equiv_id[1:]:
+                            newatomid = [newid if x ==i else x for x in newatomid]
+                            for j in self.atomidinfo[i]:
+                                newatomidinfo[newid].append(j)
+                            del newatomidinfo[i]
+                    self.atomids.append(newatomid)
+                    self.atomidinfo = newatomidinfo
+                    self.elems.append(atomicNum)
+                    self.resnames.append(resname)
+                    self.atomnames.append(atomname)
+                    self.resnumbers.append(resnumber)
+            self.nmols.append(len(xyzs))
+            for xyz in xyzs:
+                self.xyzs.append(xyz)
+            if self.inp is not None:
+                chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+            else:
+                indices = list(range(len(elem)))
+                charge = None
+                number = len(self.elems)+1
+                resname = 'mol%d' %(number)
+                chargeinfo = [[indices, resname, charge]]
+            self.listofchargeinfo.append(chargeinfo)
+            # For now, when cheminformatics is not used, ignore polar atoms
+            listofpolar = []
+            self.listofpolars.append(listofpolar)
 
     def addEspf(self, *espfFiles, selectedPts):
         for idx, espfFile in enumerate(espfFiles):
@@ -307,153 +332,177 @@ class Molecule_respyte:
 
 class Molecule_OEMol(Molecule_respyte):
     def addCoordFiles(self, *coordFiles):
-        xyzs  = []
-        listofoemol = []
-        firstconf = True
-        for coordFile in coordFiles:
-            fbmol = Molecule(coordFile)
-            xyz = fbmol.xyzs[0]
-            xyz = np.array(xyz)/bohr2Ang
-            xyzs.append(xyz)
-            # Making oemol using openeye toolkit : for atomID(?), equivGroup and listofpolar
-            ifs = oechem.oemolistream(coordFile)
-            oemol = oechem.OEGraphMol()
-            oechem.OEReadMolecule(ifs, oemol)
-            listofoemol.append(oemol)
-            oechem.OEPerceiveSymmetry(oemol)
-
-            if firstconf is True:
-                firstconf is False
-                atomicNum = []
-                elem = fbmol.elem
-                if 'resid' not in list(fbmol.Data.keys()):
-                    print(' Are you using xyz file? will assing resid, resname,atomname for you!')
-                    resnumber = [1 for i in elem]
-                    resname = list('MOL' for i in elem)
-                    atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem)]
-                else:
-                    resnumber = fbmol.resid
-                    resname = fbmol.resname
-                    atomname = fbmol.atomname
-                for elm in elem:
-                    atomicNum.append(list(PeriodicTable.keys()).index(elm) + 1 )
-                atomid = []
-                if len(self.atomidinfo) == 0:
-                    atmid = 1
-                else:
-                    atmid = max(list(self.atomidinfo.keys()))
-                # if resname is 'MOL', assign resname to be moli
-                if resname == list('MOL' for i in elem):
-                    fnm = Path(coordFile).stem
-                    newresname = fnm.split('_')[0]
-                    print(' Is this pdb file generated from esp_generator?\n')
-                    print(' It reassigns its resname to %s not to confuse with other molecules while forcing symmetry.' % newresname)
-                    resname = list(newresname for i in elem)
-                for res, atom in zip(resname, atomname):
-                    val = {'resname': res, 'atomname': atom}
-                    if len(self.atomidinfo) == 0:
-                        atomid.append(atmid)
-                        self.atomidinfo[atmid] = [val]
-                        atmid += 1
-                    elif any(val in v for v in list(self.atomidinfo.values())):
-                        for k, v in self.atomidinfo.items():
-                            if val in v:
-                                atomid.append(int(k))
-                    else:
-                        atomid.append(atmid)
-                        self.atomidinfo[atmid] = [val]
-                        atmid += 1
-
-                # Using openeye tool, make listofpolar,
-                symmetryClass = []
-                listofpolar = []
-                for atom in oemol.GetAtoms():
-                    symmetryClass.append(atom.GetSymmetryClass())
-                    if atom.IsAromatic() or atom.IsPolar() is True:
-                        listofpolar.append(atom.GetIdx())
-                        for atom2 in oemol.GetAtoms():
-                            if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
-                                listofpolar.append(atom2.GetIdx())
-                            elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
-                                listofpolar.append(atom2.GetIdx())
-
-                listofpolar = sorted(set(listofpolar))
-                idxof1statm, resnameof1statm = self.getidxof1statm(resnumber, resname)
-                unique_resid = set(resnameof1statm)
-                sameresid = [[i for i, v in enumerate(resnameof1statm) if v == value] for value in unique_resid]
-                sameresid.sort()
-                #sameresid = self.removeSingleElemList(sameresid)
-                idxof1statm.append(len(resnumber))
-                equiv_ids = []
-                #print('symmetryClass', symmetryClass)
-                #print('sameresid', sameresid)
-                for equivresidgroup in sameresid:
-                    resnum = equivresidgroup[0]
-                    listofsym = symmetryClass[idxof1statm[resnum]: idxof1statm[resnum +1]]
-                    #print(listofsym)
-                    unique_sym = set(listofsym)
-                    equiv_sym = [[i+idxof1statm[resnum] for i, v in enumerate(listofsym) if v == value] for value in unique_sym]
-                    equiv_sym = self.removeSingleElemList(equiv_sym)
-                    #print('equiv_sym', equiv_sym)
-                    # change index to ID
-                    equiv_ID = []
-                    for lst in equiv_sym:
-                        newlist = []
-                        for item in lst:
-                            newlist.append(atomid[item])
-                        equiv_ID.append(newlist)
-                    for i in equiv_ID:
-                        i.sort()
-                        equiv_ids.append(i) # weird:\
-                needtoremove = []
-                for idx, equiv_id in enumerate(equiv_ids):
-                    if len(set(equiv_id)) == 1:
-                        needtoremove.append(idx)
-                needtoremove.sort(reverse = True)
-                for i in needtoremove:
-                    del equiv_ids[i]
-                if self.inp is not None:
-                    new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
-                else:
-                    new_charge_equals = []
-                equiv_ids_comb = []
-                for i in equiv_ids:
-                    equiv_ids_comb.append(i)
-                for i in new_charge_equals:
-                    equiv_ids_comb.append(i)
-                for i in equiv_ids_comb:
-                    i.sort()
-                equiv_ids_comb.sort()
-
-                newatomid = atomid.copy()
-                newatomidinfo = self.atomidinfo.copy()
-                for equiv_id in equiv_ids_comb:
-                    newid = equiv_id[0]
-                    for i in equiv_id[1:]:
-                        newatomid = [newid if x ==i else x for x in newatomid]
-                        for j in self.atomidinfo[i]:
-                            newatomidinfo[newid].append(j)
-                        del newatomidinfo[i]
-                self.atomids.append(newatomid)
-                self.atomidinfo = newatomidinfo
-                self.elems.append(atomicNum)
-                self.resnames.append(resname)
-                self.atomnames.append(atomname)
-                self.resnumbers.append(resnumber)
-                self.listofpolars.append(listofpolar)
-
-        self.nmols.append(len(xyzs))
-        for xyz in xyzs:
-            self.xyzs.append(xyz)
-        if self.inp is not None:
-            chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
-        else:
-            indices = list(range(len(elem)))
-            charge = None
-            number = len(self.elems)+1
+        if len(coordFiles) == 0:
+            print('No conformer is given? ')
+            self.atomids.append([])
+            self.elems.append([])
+            self.resnames.append([])
+            self.atomnames.append([])
+            self.resnumbers.append([])
+            self.listofpolars.append([])
+            xyzs = []
+            self.nmols.append(len(xyzs))
+            indices = []
+            charge = 0
+            number = len(self.elems)
             resname = 'mol%d' %(number)
             chargeinfo = [[indices, resname, charge]]
-        self.listofchargeinfo.append(chargeinfo)
+            self.listofchargeinfo.append(chargeinfo)
+        else:
+            xyzs  = []
+            listofoemol = []
+            firstconf = True
+            for coordFile in coordFiles:
+                fbmol = Molecule(coordFile)
+                xyz = fbmol.xyzs[0]
+                xyz = np.array(xyz)/bohr2Ang
+                xyzs.append(xyz)
+                # Making oemol using openeye toolkit : for atomID(?), equivGroup and listofpolar
+                ifs = oechem.oemolistream(coordFile)
+                oemol = oechem.OEGraphMol()
+                oechem.OEReadMolecule(ifs, oemol)
+                listofoemol.append(oemol)
+                oechem.OEPerceiveSymmetry(oemol)
+
+                if firstconf is True:
+                    firstconf is False
+                    atomicNum = []
+                    elem = fbmol.elem
+                    if 'resid' not in list(fbmol.Data.keys()):
+                        print(' Are you using xyz file? will assing resid, resname,atomname for you!')
+                        resnumber = [1 for i in elem]
+                        resname = list('MOL' for i in elem)
+                        atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem)]
+                    else:
+                        resnumber = fbmol.resid
+                        resname = fbmol.resname
+                        atomname = fbmol.atomname
+                    for elm in elem:
+                        atomicNum.append(list(PeriodicTable.keys()).index(elm) + 1 )
+                    atomid = []
+                    if len(self.atomidinfo) == 0:
+                        atmid = 1
+                    else:
+                        atmid = max(list(self.atomidinfo.keys())) +1
+                    # if resname is 'MOL', assign resname to be moli
+                    if resname == list('MOL' for i in elem):
+                        fnm = Path(coordFile).stem
+                        newresname = fnm.split('_')[0]
+                        print(' Is this file generated from esp_generator? The residue name is MOL, which is a default residue name for small organic molecule.')
+                        print(' It reassigns the name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
+                        resname = list(newresname for i in elem)
+                        num = 1
+                        for res, atom in zip(resname, elem):
+                            val = {'resname': res, 'atomname':'%s%d' %(atom, num) }
+                            atomid.append(atmid)
+                            self.atomidinfo[atmid] = [val]
+                            atmid += 1
+                            num += 1
+                    else:
+                        for res, atom in zip(resname, atomname):
+                            val = {'resname': res, 'atomname': atom}
+                            if len(self.atomidinfo) == 0:
+                                atomid.append(atmid)
+                                self.atomidinfo[atmid] = [val]
+                                atmid += 1
+                            elif any(val in v for v in list(self.atomidinfo.values())):
+                                for k, v in self.atomidinfo.items():
+                                    if val in v:
+                                        atomid.append(int(k))
+                            else:
+                                atomid.append(atmid)
+                                self.atomidinfo[atmid] = [val]
+                                atmid += 1
+                    # Using openeye tool, make listofpolar,
+                    symmetryClass = []
+                    listofpolar = []
+                    for atom in oemol.GetAtoms():
+                        symmetryClass.append(atom.GetSymmetryClass())
+                        if atom.IsAromatic() or atom.IsPolar() is True:
+                            listofpolar.append(atom.GetIdx())
+                            for atom2 in oemol.GetAtoms():
+                                if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
+                                    listofpolar.append(atom2.GetIdx())
+                                elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
+                                    listofpolar.append(atom2.GetIdx())
+
+                    listofpolar = sorted(set(listofpolar))
+                    idxof1statm, resnameof1statm = self.getidxof1statm(resnumber, resname)
+                    unique_resid = set(resnameof1statm)
+                    sameresid = [[i for i, v in enumerate(resnameof1statm) if v == value] for value in unique_resid]
+                    sameresid.sort()
+                    #sameresid = self.removeSingleElemList(sameresid)
+                    idxof1statm.append(len(resnumber))
+                    equiv_ids = []
+                    #print('symmetryClass', symmetryClass)
+                    #print('sameresid', sameresid)
+                    for equivresidgroup in sameresid:
+                        resnum = equivresidgroup[0]
+                        listofsym = symmetryClass[idxof1statm[resnum]: idxof1statm[resnum +1]]
+                        #print(listofsym)
+                        unique_sym = set(listofsym)
+                        equiv_sym = [[i+idxof1statm[resnum] for i, v in enumerate(listofsym) if v == value] for value in unique_sym]
+                        equiv_sym = self.removeSingleElemList(equiv_sym)
+                        #print('equiv_sym', equiv_sym)
+                        # change index to ID
+                        equiv_ID = []
+                        for lst in equiv_sym:
+                            newlist = []
+                            for item in lst:
+                                newlist.append(atomid[item])
+                            equiv_ID.append(newlist)
+                        for i in equiv_ID:
+                            i.sort()
+                            equiv_ids.append(i) # weird:\
+                    needtoremove = []
+                    for idx, equiv_id in enumerate(equiv_ids):
+                        if len(set(equiv_id)) == 1:
+                            needtoremove.append(idx)
+                    needtoremove.sort(reverse = True)
+                    for i in needtoremove:
+                        del equiv_ids[i]
+                    if self.inp is not None:
+                        new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                    else:
+                        new_charge_equals = []
+                    equiv_ids_comb = []
+                    for i in equiv_ids:
+                        equiv_ids_comb.append(i)
+                    for i in new_charge_equals:
+                        equiv_ids_comb.append(i)
+                    for i in equiv_ids_comb:
+                        i.sort()
+                    equiv_ids_comb.sort()
+
+                    newatomid = atomid.copy()
+                    newatomidinfo = copy.deepcopy(self.atomidinfo)
+                    for equiv_id in equiv_ids_comb:
+                        newid = equiv_id[0]
+                        for i in equiv_id[1:]:
+                            newatomid = [newid if x ==i else x for x in newatomid]
+                            for j in self.atomidinfo[i]:
+                                newatomidinfo[newid].append(j)
+                            del newatomidinfo[i]
+                    self.atomids.append(newatomid)
+                    self.atomidinfo = newatomidinfo
+                    self.elems.append(atomicNum)
+                    self.resnames.append(resname)
+                    self.atomnames.append(atomname)
+                    self.resnumbers.append(resnumber)
+                    self.listofpolars.append(listofpolar)
+
+                    if self.inp is not None:
+                        chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+                    else:
+                        indices = list(range(len(elem)))
+                        charge = None
+                        number = len(self.elems)+1
+                        resname = 'mol%d' %(number)
+                        chargeinfo = [[indices, resname, charge]]
+                    self.listofchargeinfo.append(chargeinfo)
+            self.nmols.append(len(xyzs))
+            for xyz in xyzs:
+                self.xyzs.append(xyz)
 
 def main():
     # cwd = current working directory in which input folder exists
@@ -500,15 +549,17 @@ def main():
                 espffilepath.append(espfpath)
 
         molecule.addCoordFiles(*coordfilepath)
-    print('-----------------------------------------------------------------------------------------')
-    print('             ##   Check molecule information stored in molecule object  ##')
-    print('-----------------------------------------------------------------------------------------')
-    print('elems:       ', molecule.elems,'\n')
-    print('atom ids:    ', molecule.atomids,'\n')
-    print('resnames:    ',molecule.resnames,'\n')
-    print('polar atoms: ', molecule.listofpolars,'\n')
-    print('charge info: ',molecule.listofchargeinfo,'\n')
-    print('-----------------------------------------------------------------------------------------')
-
+        print('-----------------------------------------------------------------------------------------')
+        print('             ##   Check molecule information of %s  ' % molN )
+        print('-----------------------------------------------------------------------------------------')
+        #print('elems:       ', molecule.elems,'\n')
+        #print('atom ids:    ', molecule.atomids,'\n')
+        #print('resnames:    ',molecule.resnames,'\n')
+        #print('polar atoms: ', molecule.listofpolars,'\n')
+        print('charge info: ',molecule.listofchargeinfo[-1],'\n')
+        #print('atomidinfo', molecule.atomidinfo)
+        #print('-----------------------------------------------------------------------------------------')
+    # print(molecule.nmols, len(molecule.nmols))
+    # print(len(molecule.elems), len(molecule.atomids), len(molecule.resnames), len(molecule.listofpolars), len(molecule.xyzs))
 if __name__ == '__main__':
     main()

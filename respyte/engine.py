@@ -91,6 +91,7 @@ class EnginePsi4(Engine):
             spinmult = 1
         elif totchg % 2 == 1:
             spinmult = 2
+            method = 'u%s' % method
         def format_xyz_coord(element,xyz):
             return "%-s % 10.4f % 10.4f % 10.4f" % (element, xyz[0], xyz[1],xyz[2])
 

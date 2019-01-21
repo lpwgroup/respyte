@@ -220,7 +220,12 @@ class Respyte_Optimizer:
         unique_resname = list(set(chargeinfo[i][1] for i,info in enumerate(chargeinfo)))
         # print(unique_resname)
         for lstofidx, resname, netchg in chargeinfo:
-            if resname in check:
+            if len(lstofidx) == 0 :
+                unique_resname.remove(resname)
+        for lstofidx, resname, netchg in chargeinfo:
+            if len(lstofidx) == 0:
+                pass
+            elif resname in check:
                 pass
             else:
                 check.append(resname)
@@ -252,8 +257,6 @@ class Respyte_Optimizer:
             bpot.append(netchg)
         apot = np.array(apot)
         bpot = np.array(bpot)
-        # print(apot.shape)
-        # input()
         return apot, bpot
 
     def getCondensedIndices(self, nAtoms, equivGroupsInp):
@@ -395,32 +398,35 @@ class Respyte_Optimizer:
         elem_comb = []
         Size = 0
         for idx, i in enumerate(self.molecule.nmols):
-            size = len(self.molecule.xyzs[loc])
-            Size += size
-            apot_added = np.zeros((size, size))
-            bpot_added = np.zeros((size))
-            for xyz, gridxyz, espval, efval  in zip(self.molecule.xyzs[loc:loc+i], self.molecule.gridxyzs[loc:loc+i], self.molecule.espvals[loc:loc+i], self.molecule.efvals[loc:loc+i]):
-                if 'matrices' in self.inp.restraintinfo:
-                    if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+            if i == 0:
+                pass
+            else:
+                size = len(self.molecule.xyzs[loc])
+                Size += size
+                apot_added = np.zeros((size, size))
+                bpot_added = np.zeros((size))
+                for xyz, gridxyz, espval, efval  in zip(self.molecule.xyzs[loc:loc+i], self.molecule.gridxyzs[loc:loc+i], self.molecule.espvals[loc:loc+i], self.molecule.efvals[loc:loc+i]):
+                    if 'matrices' in self.inp.restraintinfo:
+                        if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
 
-                        apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
-                    elif self.inp.restraintinfo['matrices'] == ['esp']:
+                            apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
+                        elif self.inp.restraintinfo['matrices'] == ['esp']:
+                            apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                        elif self.inp.restraintinfo['matrices'] == ['ef']:
+                            apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
+                    else:
                         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                    elif self.inp.restraintinfo['matrices'] == ['ef']:
-                        apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
-                else:
-                    apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                apot_added += apot
-                bpot_added += bpot
-            apot_added /= i
-            bpot_added /= i
-            apots.append(apot_added)
-            bpots.append(bpot_added)
-            for j in self.molecule.atomids[idx]:
-                atomid_comb.append(j)
-            for j in self.molecule.elems[idx]:
-                elem_comb.append(j)
-            loc += i
+                    apot_added += apot
+                    bpot_added += bpot
+                apot_added /= i
+                bpot_added /= i
+                apots.append(apot_added)
+                bpots.append(bpot_added)
+                for j in self.molecule.atomids[idx]:
+                    atomid_comb.append(j)
+                for j in self.molecule.elems[idx]:
+                    elem_comb.append(j)
+                loc += i
 
         apot_comb  = np.zeros((Size, Size))
         bpot_comb = np.zeros((Size))
@@ -847,7 +853,6 @@ class Respyte_Optimizer:
         apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb = self.combineMatrices()
         nAtoms = self.get_nAtoms(self.molecule.elems)
         equivGroup_comb = self.get_equivGroup(atomid_comb) # equivGroup_combined
-
         # I dont think this 'nonpolars' is that useful. But for now, I need it.
         nonpolars = []
         for index, listofpolar in enumerate(self.molecule.listofpolars):
@@ -877,7 +882,11 @@ class Respyte_Optimizer:
                 listofPolarEquiv.append(equivGroup)
             else:
                 listofNonpolarEquiv.append(equivGroup)
-
+        # print('listofpolar_comb', listofpolar_comb)
+        # print('listofnonpolar_comb', listofnonpolar_comb)
+        # print('atomid_comb', atomid_comb)
+        # print(equivGroup_comb)
+        # input()
         """
         1st stage: force symmetry on polar atoms and apply smaller restraint weight.
 
@@ -910,7 +919,7 @@ class Respyte_Optimizer:
                     nonpolarindices.append(listofnonpolar_comb.index(i))
             nonpolarchargeinfo.append([nonpolarindices,resname, charge-polarcharges])
         # print(newlistofchargeinfo, nonpolarchargeinfo)
-        # input()
+        #input()
 
         atomid_nonpolar = [atomid_comb[i] for i in listofnonpolar_comb]
         elem_nonpolar = [elem_comb[i] for i in listofnonpolar_comb]
