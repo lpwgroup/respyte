@@ -20,6 +20,8 @@ bohr2Ang = 0.52918825 # change unit from bohr to angstrom
 
 class Molecule_respyte:
     def __init__(self, gridxyzs = [], espvals = [], efvals = [], prnlev = 0):
+        # store molecule objects first
+        self.mols = []
         self.inp = None
         self.xyzs = []
         self.nmols = []
@@ -46,7 +48,7 @@ class Molecule_respyte:
         for efval in efvals:
             self.addEfValues(efval)
         self.prnlev = prnlev
-
+         
 
     def addXyzCoordinates(self, xyz):
         if not isinstance(xyz, np.ndarray) or len(xyz.shape) != 2 or xyz.shape[1] != 3:
@@ -182,6 +184,7 @@ class Molecule_respyte:
     def addCoordFiles(self, *coordFiles):
         if len(coordFiles) == 0:
             print('No conformer is given? ')
+            self.mols.append(Molecule())
             self.atomids.append([])
             self.elems.append([])
             self.resnames.append([])
@@ -197,10 +200,12 @@ class Molecule_respyte:
             chargeinfo = [[indices, resname, charge]]
             self.listofchargeinfo.append(chargeinfo)
         else:
+            mols = []
             xyzs  = []
             firstconf = True
             for coordFile in coordFiles:
                 fbmol = Molecule(coordFile)
+                self.mols.append(fbmol)
                 xyz = fbmol.xyzs[0]
                 xyz = np.array(xyz)/bohr2Ang
                 xyzs.append(xyz)
@@ -334,6 +339,7 @@ class Molecule_OEMol(Molecule_respyte):
     def addCoordFiles(self, *coordFiles):
         if len(coordFiles) == 0:
             print('No conformer is given? ')
+            self.mols.append(oechem.OEMol())
             self.atomids.append([])
             self.elems.append([])
             self.resnames.append([])
@@ -503,6 +509,9 @@ class Molecule_OEMol(Molecule_respyte):
             self.nmols.append(len(xyzs))
             for xyz in xyzs:
                 self.xyzs.append(xyz)
+            for oemol in listofoemol:
+                self.mols.append(oemol)
+
 
 def main():
     # cwd = current working directory in which input folder exists
