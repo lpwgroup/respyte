@@ -39,18 +39,6 @@ install:
   # Build and install package
   - python setup.py develop --no-deps
 
-install:
-
-    # Create test environment for package
-  - conda create -n test python=$PYTHON_VER pip pytest pytest-cov
-  - conda activate test
-
-    # Install pip only modules
-  - pip install codecov
-    # Build and install package
-  - conda build --python=$PYTHON_VER devtools/conda-recipe
-  - conda install --use-local respyte
-
 script:
   - pytest -v --cov=respyte respyte/tests/
 
