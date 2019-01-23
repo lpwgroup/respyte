@@ -147,9 +147,6 @@ class Respyte_Optimizer:
             invRijSq.append( invRiSq )
             invRij.append(absinvRi)
             invRijCubed.append(invRiSq*absinvRi)
-        """
-        Under construction.....................................................
-        """
         # build A matrix and B vector using electric field.
         dria = np.zeros((nAtoms,len(efval),3))
         for j in range(nAtoms):
@@ -699,7 +696,21 @@ class Respyte_Optimizer:
         else:
             writeMol2 = True
             os.mkdir('%s/resp_output' % path)
-
+        # write text file for collecting result:)
+        with open('%s/resp_output/result.txt' % path,'w') as f:
+            f.write('respyte result\n')
+            f.write(' Model 2')
+            if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                f.write(' RESPF\n')
+            elif self.inp.restraintinfo['matrices'] == ['esp']:
+                f.write(' RESP\n')
+            elif self.inp.restraintinfo['matrices'] == ['ef']:
+                f.write(' REF\n')
+            f.write(' weight = %8.4f\n' % (weight))
+            for idx, qpot in enumerate(qpots):
+                f.write('mol%d\n' % (idx+1))
+                for charge in qpot:
+                    f.write('%8.4f\n' % round(charge,4))
         print()
         print('-------------------------------------------------------')
         print()
@@ -708,15 +719,6 @@ class Respyte_Optimizer:
         for idx, i in enumerate(self.molecule.nmols):
             config = 1
             for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
-                # if 'matrices' in self.inp.restraintinfo:
-                #     if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
-                #         apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
-                #     elif self.inp.restraintinfo['matrices'] == ['esp']:
-                #         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                #     elif self.inp.restraintinfo['matrices'] == ['ef']:
-                #         apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
-                # else:
-                #     apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                 Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
                 apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                 print()
@@ -825,7 +827,21 @@ class Respyte_Optimizer:
         else:
             writeMol2 = True
             os.mkdir('%s/resp_output' % path)
-
+        # write text file for collecting result:)
+        with open('%s/resp_output/result.txt' % path,'w') as f:
+            f.write('respyte result\n')
+            f.write(' Model 3')
+            if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                f.write(' RESPF\n')
+            elif self.inp.restraintinfo['matrices'] == ['esp']:
+                f.write(' RESP\n')
+            elif self.inp.restraintinfo['matrices'] == ['ef']:
+                f.write(' REF\n')
+            f.write(' weight = %8.4f, tightness = %8.4f\n' % (weight, tightness))
+            for idx, qpot in enumerate(qpots):
+                f.write('mol%d\n' % (idx+1))
+                for charge in qpot:
+                    f.write('%8.4f\n' % round(charge,4))
         print()
         print('-------------------------------------------------------')
         print()
@@ -834,14 +850,6 @@ class Respyte_Optimizer:
         for idx, i in enumerate(self.molecule.nmols):
             config = 1
             for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
-                # if 'matrices' in self.inp.restraintinfo:
-                #     if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
-                #         apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
-                #     elif self.inp.restraintinfo['matrices'] == ['esp']:
-                #         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                #     elif self.inp.restraintinfo['matrices'] == ['ef']:
-                #         apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
-                # else:
                 Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
                 apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                 print()
@@ -986,27 +994,30 @@ class Respyte_Optimizer:
         else:
             writeMol2 = True
             os.mkdir('%s/resp_output' % path)
+        # write text file for collecting result:)
+        with open('%s/resp_output/result.txt' % path,'w') as f:
+            f.write('respyte result\n')
+            f.write(' Two stage fit')
+            if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                f.write(' RESPF\n')
+            elif self.inp.restraintinfo['matrices'] == ['esp']:
+                f.write(' RESP\n')
+            elif self.inp.restraintinfo['matrices'] == ['ef']:
+                f.write(' REF\n')
+            f.write(' weight1 = %8.4f, weight2 = %8.4f, tightness = %8.4f\n' % (weight1, weight2, tightness))
+            for idx, qpot in enumerate(qpots):
+                f.write('mol%d\n' % (idx+1))
+                for charge in qpot:
+                    f.write('%8.4f\n' % round(charge,4))
 
         print()
         print('-------------------------------------------------------')
         print()
         print('    Two stage fit with a1 = %.4f, a2 = %.4f' % (weight1, weight2))
         loc = 0
-        # print('nmols', self.molecule.nmols)
-        # print('len(elems)', len(self.molecule.elems))
-        # input()
         for idx, i in enumerate(self.molecule.nmols):
             config = 1
             for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
-                # if 'matrices' in self.inp.restraintinfo:
-                #     if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
-                #         apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
-                #     elif self.inp.restraintinfo['matrices'] == ['esp']:
-                #         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                #     elif self.inp.restraintinfo['matrices'] == ['ef']:
-                #         apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
-                # else:
-                #     apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                 Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
                 apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
 
