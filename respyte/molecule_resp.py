@@ -15,6 +15,7 @@ except ImportError:
 from molecule import *
 from readinp_resp import Input
 from pathlib import Path
+from readmol import *
 
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
 
@@ -48,7 +49,7 @@ class Molecule_respyte:
         for efval in efvals:
             self.addEfValues(efval)
         self.prnlev = prnlev
-         
+
 
     def addXyzCoordinates(self, xyz):
         if not isinstance(xyz, np.ndarray) or len(xyz.shape) != 2 or xyz.shape[1] != 3:
@@ -338,7 +339,7 @@ class Molecule_respyte:
 class Molecule_OEMol(Molecule_respyte):
     def addCoordFiles(self, *coordFiles):
         if len(coordFiles) == 0:
-            print('No conformer is given? ')
+            print('Skip this molecule? Empty molecule object will be created since no conformers is provided.')
             self.mols.append(oechem.OEMol())
             self.atomids.append([])
             self.elems.append([])
@@ -426,11 +427,17 @@ class Molecule_OEMol(Molecule_respyte):
                         symmetryClass.append(atom.GetSymmetryClass())
                         if atom.IsAromatic() or atom.IsPolar() is True:
                             listofpolar.append(atom.GetIdx())
-                            for atom2 in oemol.GetAtoms():
-                                if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
+                            for bond in atom.GetBonds():
+                                atom2 = bond.GetNbr(atom)
+                                if atom2.IsHydrogen():
                                     listofpolar.append(atom2.GetIdx())
-                                elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
+                                elif atom2.IsCarbon() and bond.GetType() != '1':
                                     listofpolar.append(atom2.GetIdx())
+                            # for atom2 in oemol.GetAtoms():
+                            #     if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
+                            #         listofpolar.append(atom2.GetIdx())
+                            #     elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
+                            #         listofpolar.append(atom2.GetIdx())
 
                     listofpolar = sorted(set(listofpolar))
                     idxof1statm, resnameof1statm = self.getidxof1statm(resnumber, resname)
@@ -512,6 +519,191 @@ class Molecule_OEMol(Molecule_respyte):
             for oemol in listofoemol:
                 self.mols.append(oemol)
 
+class Molecule_RDMol(Molecule_respyte):
+    def addCoordFiles(self, *coordFiles):
+        #raise NotImplementedError('Will be implemented soon!')
+        if len(coordFiles) == 0:
+            print('Skip this molecule? Empty molecule object will be created since no conformers is provided.')
+            self.mols.append(rdchem.Mol())
+            self.atomids.append([])
+            self.elems.append([])
+            self.resnames.append([])
+            self.atomnames.append([])
+            self.resnumbers.append([])
+            self.listofpolars.append([])
+            xyzs = []
+            self.nmols.append(len(xyzs))
+            indices = []
+            charge = 0
+            number = len(self.elems)
+            resname = 'mol%d' %(number)
+            chargeinfo = [[indices, resname, charge]]
+            self.listofchargeinfo.append(chargeinfo)
+        else:
+            xyzs  = []
+            listofrdmol = []
+            firstconf = True
+            for coordFile in coordFiles:
+                fbmol = Molecule(coordFile)
+                xyz = fbmol.xyzs[0]
+                xyz = np.array(xyz)/bohr2Ang
+                xyzs.append(xyz)
+                # Making rdmol using rdkit
+                rdmol = ReadRdMolFromFile(coordFile)
+                listofrdmol.append(rdmol)
+                ##########################################################################
+                ### Below is the same with addCoordFiles in Molecule_OEMol             ###
+                if firstconf is True:
+                    firstconf is False
+                    atomicNum = []
+                    elem = fbmol.elem
+                    if 'resid' not in list(fbmol.Data.keys()):
+                        print(' Are you using xyz file? will assing resid, resname,atomname for you!')
+                        resnumber = [1 for i in elem]
+                        resname = list('MOL' for i in elem)
+                        atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem)]
+                    else:
+                        resnumber = fbmol.resid
+                        resname = fbmol.resname
+                        atomname = fbmol.atomname
+                    for elm in elem:
+                        atomicNum.append(list(PeriodicTable.keys()).index(elm) + 1 )
+                    atomid = []
+                    if len(self.atomidinfo) == 0:
+                        atmid = 1
+                    else:
+                        atmid = max(list(self.atomidinfo.keys())) +1
+                    # if resname is 'MOL', assign resname to be moli
+                    if resname == list('MOL' for i in elem):
+                        fnm = Path(coordFile).stem
+                        newresname = fnm.split('_')[0]
+                        print(' Is this file generated from esp_generator? The residue name is MOL, which is a default residue name for small organic molecule.')
+                        print(' It reassigns the name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
+                        resname = list(newresname for i in elem)
+                        num = 1
+                        for res, atom in zip(resname, elem):
+                            val = {'resname': res, 'atomname':'%s%d' %(atom, num) }
+                            atomid.append(atmid)
+                            self.atomidinfo[atmid] = [val]
+                            atmid += 1
+                            num += 1
+                    else:
+                        for res, atom in zip(resname, atomname):
+                            val = {'resname': res, 'atomname': atom}
+                            if len(self.atomidinfo) == 0:
+                                atomid.append(atmid)
+                                self.atomidinfo[atmid] = [val]
+                                atmid += 1
+                            elif any(val in v for v in list(self.atomidinfo.values())):
+                                for k, v in self.atomidinfo.items():
+                                    if val in v:
+                                        atomid.append(int(k))
+                            else:
+                                atomid.append(atmid)
+                                self.atomidinfo[atmid] = [val]
+                                atmid += 1
+                ### Above is the same with addCoordFiles in Molecule_OEMol             ###
+                ##########################################################################
+                    # Get symmetry class from rdkit
+                    rdchem.AssignStereochemistry(rdmol, cleanIt=True, force=True, flagPossibleStereoCenters=True)
+                    symmetryClass = []
+                    for atom in rdmol.GetAtoms():
+                        symmetryClass.append(int(atom.GetProp('_CIPRank')))
+                    # Get a list of polar atoms from rdkit
+                    listofpolar  = []
+                    for atom in rdmol.GetAtoms():
+                        if (atom.GetSymbol() != 'C' and atom.GetSymbol() !='H') or atom.GetIsAromatic():
+                            listofpolar.append(atom.GetIdx())
+                            for bond in atom.GetBonds():
+                                atom2 = bond.GetOtherAtom(atom)
+                                if atom2.GetSymbol() == 'H':
+                                    listofpolar.append(atom2.GetIdx())
+                                elif atom2.GetSymbol() == 'C' and str(bond.GetBondType()) != 'SINGLE':
+                                    listofpolar.append(atom2.GetIdx())
+                    listofpolar = sorted(set(listofpolar))
+                ##########################################################################
+                ### Below is the same with addCoordFiles in Molecule_OEMol             ###
+                    idxof1statm, resnameof1statm = self.getidxof1statm(resnumber, resname)
+                    unique_resid = set(resnameof1statm)
+                    sameresid = [[i for i, v in enumerate(resnameof1statm) if v == value] for value in unique_resid]
+                    sameresid.sort()
+                    #sameresid = self.removeSingleElemList(sameresid)
+                    idxof1statm.append(len(resnumber))
+                    equiv_ids = []
+                    #print('symmetryClass', symmetryClass)
+                    #print('sameresid', sameresid)
+                    for equivresidgroup in sameresid:
+                        resnum = equivresidgroup[0]
+                        listofsym = symmetryClass[idxof1statm[resnum]: idxof1statm[resnum +1]]
+                        #print(listofsym)
+                        unique_sym = set(listofsym)
+                        equiv_sym = [[i+idxof1statm[resnum] for i, v in enumerate(listofsym) if v == value] for value in unique_sym]
+                        equiv_sym = self.removeSingleElemList(equiv_sym)
+                        #print('equiv_sym', equiv_sym)
+                        # change index to ID
+                        equiv_ID = []
+                        for lst in equiv_sym:
+                            newlist = []
+                            for item in lst:
+                                newlist.append(atomid[item])
+                            equiv_ID.append(newlist)
+                        for i in equiv_ID:
+                            i.sort()
+                            equiv_ids.append(i) # weird:\
+                    needtoremove = []
+                    for idx, equiv_id in enumerate(equiv_ids):
+                        if len(set(equiv_id)) == 1:
+                            needtoremove.append(idx)
+                    needtoremove.sort(reverse = True)
+                    for i in needtoremove:
+                        del equiv_ids[i]
+                    if self.inp is not None:
+                        new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                    else:
+                        new_charge_equals = []
+                    equiv_ids_comb = []
+                    for i in equiv_ids:
+                        equiv_ids_comb.append(i)
+                    for i in new_charge_equals:
+                        equiv_ids_comb.append(i)
+                    for i in equiv_ids_comb:
+                        i.sort()
+                    equiv_ids_comb.sort()
+
+                    newatomid = atomid.copy()
+                    newatomidinfo = copy.deepcopy(self.atomidinfo)
+                    for equiv_id in equiv_ids_comb:
+                        newid = equiv_id[0]
+                        for i in equiv_id[1:]:
+                            newatomid = [newid if x ==i else x for x in newatomid]
+                            for j in self.atomidinfo[i]:
+                                newatomidinfo[newid].append(j)
+                            del newatomidinfo[i]
+                    self.atomids.append(newatomid)
+                    self.atomidinfo = newatomidinfo
+                    self.elems.append(atomicNum)
+                    self.resnames.append(resname)
+                    self.atomnames.append(atomname)
+                    self.resnumbers.append(resnumber)
+                    self.listofpolars.append(listofpolar)
+
+                    if self.inp is not None:
+                        chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
+                    else:
+                        indices = list(range(len(elem)))
+                        charge = None
+                        number = len(self.elems)+1
+                        resname = 'mol%d' %(number)
+                        chargeinfo = [[indices, resname, charge]]
+                    self.listofchargeinfo.append(chargeinfo)
+            self.nmols.append(len(xyzs))
+            for xyz in xyzs:
+                self.xyzs.append(xyz)
+            for rdmol in listofrdmol:
+                self.mols.append(rdmol)
+                ### Above is the same with addCoordFiles in Molecule_OEMol             ###
+                ##########################################################################
+
 
 def main():
     # cwd = current working directory in which input folder exists
@@ -522,7 +714,7 @@ def main():
     if inp.cheminformatics == 'openeye':
         molecule = Molecule_OEMol()
     elif inp.cheminformatics == 'rdkit':
-        raise NotImplementedError('Sorry. Using rdkit hasnt been implemented! :(')
+        molecule = Molecule_RDMol()
     else:
         molecule = Molecule_respyte()
     molecule.addInp(inp)
@@ -564,8 +756,8 @@ def main():
         #print('elems:       ', molecule.elems,'\n')
         #print('atom ids:    ', molecule.atomids,'\n')
         #print('resnames:    ',molecule.resnames,'\n')
-        #print('polar atoms: ', molecule.listofpolars,'\n')
-        print('charge info: ',molecule.listofchargeinfo[-1],'\n')
+        print('polar atoms: ', molecule.listofpolars[-1],'\n')
+        #print('charge info: ',molecule.listofchargeinfo[-1],'\n')
         #print('atomidinfo', molecule.atomidinfo)
         #print('-----------------------------------------------------------------------------------------')
     # print(molecule.nmols, len(molecule.nmols))

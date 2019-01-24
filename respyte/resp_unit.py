@@ -6,9 +6,14 @@ import re
 from collections import OrderedDict, namedtuple, Counter
 from warnings import warn
 try:
+    import rdkit.Chem as rdchem
+except ImportError:
+    warn(' The rdkit module cannot be imported. ' )
+try:
     import openeye.oechem as oechem
 except ImportError:
     warn(' The Openeye module cannot be imported. ( Please provide equivGoups and listofpolar manually.)')
+
 from molecule import *
 from readinp_resp import Input
 
@@ -611,6 +616,14 @@ class Respyte_Optimizer:
             ofs.open(outfile)
             oechem.OEWriteMolecule(ofs, mol)
 
+        elif moltype is 'rdmol':
+            if isinstance(mol, rdchem.Mol):
+                # what I need:
+                print('Can not generate mol2 file using RDKit yet, will be implemented soon!')
+            else:
+                raise RuntimeError('Failed to identify the RDKit molecule object!')
+
+
         else:
             if isinstance(mol, Molecule):
                 # Check if given molecule object contains atomtype, resid and resname
@@ -738,6 +751,8 @@ class Respyte_Optimizer:
                 if writeMol2 is True:
                     if self.inp.cheminformatics == 'openeye':
                         molt = 'oemol'
+                    elif self.inp.cheminformatics == 'rdkit':
+                        molt = 'rdmol'
                     else:
                         molt = 'fbmol'
                     self.write_output(self.molecule.mols[idx], qpots[idx], moltype = molt,
@@ -869,6 +884,8 @@ class Respyte_Optimizer:
                 if writeMol2 is True:
                     if self.inp.cheminformatics == 'openeye':
                         molt = 'oemol'
+                    elif self.inp.cheminformatics == 'rdkit':
+                        molt = 'rdmol'
                     else:
                         molt = 'fbmol'
                     self.write_output(self.molecule.mols[idx], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
@@ -1005,6 +1022,7 @@ class Respyte_Optimizer:
             elif self.inp.restraintinfo['matrices'] == ['ef']:
                 f.write(' REF\n')
             f.write(' weight1 = %8.4f, weight2 = %8.4f, tightness = %8.4f\n' % (weight1, weight2, tightness))
+            f.write('cheminformatics: %s\n' % self.inp.cheminformatics)
             for idx, qpot in enumerate(qpots):
                 f.write('mol%d\n' % (idx+1))
                 for charge in qpot:
@@ -1038,6 +1056,8 @@ class Respyte_Optimizer:
                 if writeMol2 is True:
                     if self.inp.cheminformatics == 'openeye':
                         molt = 'oemol'
+                    elif self.inp.cheminformatics == 'rdkit':
+                        molt = 'rdmol'
                     else:
                         molt = 'fbmol'
                     self.write_output(self.molecule.mols[idx], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
