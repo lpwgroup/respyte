@@ -50,6 +50,7 @@ class Molecule_respyte:
             self.addEfValues(efval)
         self.prnlev = prnlev
 
+        # self.spaces = []
 
     def addXyzCoordinates(self, xyz):
         if not isinstance(xyz, np.ndarray) or len(xyz.shape) != 2 or xyz.shape[1] != 3:
@@ -67,6 +68,7 @@ class Molecule_respyte:
         self.gridxyzs.append(gridxyz.copy())
         if self.prnlev >= 1:
             print("Added grid points with shape %s, %i sets total" % (str(gridxyz.shape), len(self.gridxyzs)))
+
     def addEspValues(self, espval):
         if not isinstance(espval, np.ndarray) or len(espval.shape) != 1:
             print("Problem with input:", espval)
@@ -81,6 +83,8 @@ class Molecule_respyte:
         self.efvals.append(efval.copy())
         if self.prnlev >= 1:
             print("Added EF values with shape %s, %i sets total" % (str(efval.shape), len(self.efvals)))
+    # def addSpaces(self, space):
+    #     self.spaces.append(space)
 
     def addInp(self, inpcls):
         assert isinstance(inpcls, Input)
@@ -323,6 +327,17 @@ class Molecule_respyte:
                         else:
                             print('Error ReadEspfFile: encountered line not having 3 or 4 numbers')
                             return False
+            # # read space
+            # space = 10.0
+            # for i in gridxyz:
+            #     for j in gridxyz[i:]:
+            #         dr = np.array(j) - np.array(i)
+            #     r = np.sqrt(np.dot(dr, dr))
+            #     if r == 0:
+            #         pass
+            #     elif r < space:
+            #         space = r
+
             if self.prnlev >= 1:
                 print()
                 print('ReadEspfFile: % d ESP and % d EF points read in from file %s' % (len(espval), len(efval), espfFile))
@@ -334,7 +349,7 @@ class Molecule_respyte:
             self.addGridPoints(gridxyz)
             self.addEspValues(espval)
             self.addEfValues(efval)
-
+            # self.addSpaces(space)
 
 class Molecule_OEMol(Molecule_respyte):
     def addCoordFiles(self, *coordFiles):
@@ -371,8 +386,8 @@ class Molecule_OEMol(Molecule_respyte):
                 listofoemol.append(oemol)
                 oechem.OEPerceiveSymmetry(oemol)
 
-                if firstconf is True:
-                    firstconf is False
+                if firstconf == True:
+                    firstconf = False
                     atomicNum = []
                     elem = fbmol.elem
                     if 'resid' not in list(fbmol.Data.keys()):
@@ -425,7 +440,7 @@ class Molecule_OEMol(Molecule_respyte):
                     listofpolar = []
                     for atom in oemol.GetAtoms():
                         symmetryClass.append(atom.GetSymmetryClass())
-                        if atom.IsAromatic() or atom.IsPolar() is True:
+                        if atom.IsAromatic() == True or atom.IsPolar() == True:
                             listofpolar.append(atom.GetIdx())
                             for bond in atom.GetBonds():
                                 atom2 = bond.GetNbr(atom)
@@ -553,8 +568,8 @@ class Molecule_RDMol(Molecule_respyte):
                 listofrdmol.append(rdmol)
                 ##########################################################################
                 ### Below is the same with addCoordFiles in Molecule_OEMol             ###
-                if firstconf is True:
-                    firstconf is False
+                if firstconf == True:
+                    firstconf = False
                     atomicNum = []
                     elem = fbmol.elem
                     if 'resid' not in list(fbmol.Data.keys()):
@@ -754,13 +769,13 @@ def main():
         print('             ##   Check molecule information of %s  ' % molN )
         print('-----------------------------------------------------------------------------------------')
         #print('elems:       ', molecule.elems,'\n')
-        #print('atom ids:    ', molecule.atomids,'\n')
+        print('atom ids:    ', molecule.atomids,'\n')
         #print('resnames:    ',molecule.resnames,'\n')
         print('polar atoms: ', molecule.listofpolars[-1],'\n')
         #print('charge info: ',molecule.listofchargeinfo[-1],'\n')
         #print('atomidinfo', molecule.atomidinfo)
         #print('-----------------------------------------------------------------------------------------')
     # print(molecule.nmols, len(molecule.nmols))
-    # print(len(molecule.elems), len(molecule.atomids), len(molecule.resnames), len(molecule.listofpolars), len(molecule.xyzs))
+    print(len(molecule.elems), len(molecule.atomids), len(molecule.resnames), len(molecule.listofpolars), len(molecule.xyzs))
 if __name__ == '__main__':
     main()
