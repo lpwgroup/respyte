@@ -33,6 +33,7 @@ class Input:
             self.nmols = []
             self.restraintinfo = {}
             self.gridinfo = None
+            self.gridspace = 0.7
         else:
             self.readinp(inputFile)
 
@@ -93,6 +94,11 @@ class Input:
         if 'boundary_select' in inp:
             gridinfo['boundary_select'] = inp['boundary_select']
 
+        if 'grid_space' in inp:
+            space = inp['grid_space']
+        else:
+            space = 0.7
+
         self.cheminformatics = cheminformatics
         self.set_charge      = set_charge
         self.resChargeDict   = resChargeDict
@@ -100,6 +106,7 @@ class Input:
         self.nmols           = nmols
         self.restraintinfo   = restraintinfo
         self.gridinfo        = gridinfo
+        self.gridspace       = space
 
 def main():
     inp = Input()
