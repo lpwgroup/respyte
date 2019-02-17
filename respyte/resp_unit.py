@@ -96,6 +96,7 @@ class Respyte_Optimizer:
                 apot[k,j] = sumrijrik
         for j, invRiSq in enumerate( invRijSq):
             apot[j,j] = np.sum( np.sort(invRiSq) )
+
         return apot, bpot
 
     def EfDesignMatrix(self, xyzs, gridxyzs, efval):
@@ -351,6 +352,10 @@ class Respyte_Optimizer:
         crossProd = np.sum(np.dot(qpot, bpot))
         modelSumSq = np.dot(qpot,np.dot(apot,qpot))
         chiSq = sumSq - 2*crossProd + modelSumSq
+        print(' max(Aij) : ', np.amax(apot))
+        print(' chi esp  : ', chiSq)
+        scalingFac = (float(self.inp.gridspace)/0.7)**3
+        print(' chi esp after Norm : ', chiSq*scalingFac)
         rrmsval = np.sqrt(chiSq/sumSq)
         return rrmsval
 
@@ -418,6 +423,14 @@ class Respyte_Optimizer:
                             apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
                     else:
                         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                    # Normalization
+                    print(' max(Aij) before Normalization: ', np.amax(apot) )
+                    #scalingFac = np.amax(apot)
+                    scalingFac = (float(self.inp.gridspace)/0.7)**3
+                    print(' scalingFac : ', scalingFac)
+                    apot *= scalingFac
+                    bpot *= scalingFac
+
                     apot_added += apot
                     bpot_added += bpot
                 apot_added /= i
@@ -539,6 +552,8 @@ class Respyte_Optimizer:
             bpot_sym = np.delete(bpot_sym, i)
             elem_sym = np.delete(elem_sym, i)
             atomid_sym = np.delete(atomid_sym, i)  # after forcing symmetry ,it makes singular matrix problem:/
+
+
         return apot_sym, bpot_sym, elem_sym, atomid_sym
 
     def apply_set_charge(self, apotInp, bpotInp, atomidInp, atomidinfo, set_charge):
@@ -546,6 +561,7 @@ class Respyte_Optimizer:
         fix charges listed in set_charge and calculate linear algebra
 
         """
+
         fixedatoms = []
         setcharges = []
         for atom in set_charge:
@@ -574,12 +590,14 @@ class Respyte_Optimizer:
             apot_free = np.delete(apot_free, i, axis = 0)
             apot_free = np.delete(apot_free, i, axis = 1)
             bpot_free = np.delete(bpot_free, i)
-
-        try:
-            qpot_free = sci.linalg.solve(apot_free,bpot_free)
-        except np.linalg.LinAlgError as err:
-            print(' Singular matrix error:/ ')
-            qpot_free = sci.linalg.lstsq(apot_free, bpot_free)[0] # wonder if this looks right/.... be back later
+        if len(apot_free) == 0:
+            qpot_free = []
+        else:
+            try:
+                qpot_free = sci.linalg.solve(apot_free,bpot_free)
+            except np.linalg.LinAlgError as err:
+                print(' Singular matrix error:/ ')
+                qpot_free = sci.linalg.lstsq(apot_free, bpot_free)[0] # wonder if this looks right/.... be back later
 
         qpot_expand = np.zeros((len(apotInp)))
         for idx, i in enumerate(indices_free):
@@ -619,9 +637,9 @@ class Respyte_Optimizer:
         elif moltype is 'rdmol':
             if isinstance(mol, rdchem.Mol):
                 # what I need:
-                print('Can not generate mol2 file using RDKit yet, will be implemented soon!')
+                print(' Can not generate mol2 file using RDKit yet, will be implemented soon!')
             else:
-                raise RuntimeError('Failed to identify the RDKit molecule object!')
+                raise RuntimeError(' Failed to identify the RDKit molecule object!')
 
 
         else:
@@ -787,7 +805,7 @@ class Respyte_Optimizer:
         newapot = copy.deepcopy(np.array(apotInp))
         N =  len(newapot)
         if N != len(listofelem):
-            print('List of elements should have the same size with A0 matrix.')
+            print(' List of elements should have the same size with A0 matrix.')
             return False
         for i in range(N):
             if listofelem[i] == 'H' or listofelem[i] == 1:
@@ -802,6 +820,8 @@ class Respyte_Optimizer:
 
         def Model3Iteration(qpot_temp):
             newapot = self.Model3Amatrix(apot_comb, weight, tightness, qpot_temp, elem_comb)
+            # print(len(elem_comb), len(apot_comb), len(newapot))
+            # input()
             apot_constrained, bpot_constrained = self.LagrangeChargeConstraint(newapot, bpot_comb, chargeinfo_comb)
             # Force symmetry based on the atomid
             #equivGroup = self.get_equivGroup(atomid_comb)
@@ -862,34 +882,39 @@ class Respyte_Optimizer:
         print()
         print('              Model 3 with a = %.4f' % (weight))
         loc = 0
+        add = 0
         for idx, i in enumerate(self.molecule.nmols):
-            config = 1
-            for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
-                Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
-                apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                print()
-                print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
-                print()
-                row_format = "{:>10}" * (5)
-                firstrow = ['no.','atomname','resname','atomid','q(opt)']
-                print(row_format.format(*firstrow))
-                for index, q in enumerate(qpots[idx]):
-                    resname = self.molecule.resnames[idx][index]
-                    atomname = self.molecule.atomnames[idx][index]
-                    atomid = self.molecule.atomids[idx][index]
-                    print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
-                print()
-                print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
-                print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
-                if writeMol2 is True:
-                    if self.inp.cheminformatics == 'openeye':
-                        molt = 'oemol'
-                    elif self.inp.cheminformatics == 'rdkit':
-                        molt = 'rdmol'
-                    else:
-                        molt = 'fbmol'
-                    self.write_output(self.molecule.mols[idx], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
-                config += 1
+            if i == 0:
+                add += 1
+            else:
+                config = 1
+
+                for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                    Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
+                    apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                    print()
+                    print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
+                    print()
+                    row_format = "{:>10}" * (5)
+                    firstrow = ['no.','atomname','resname','atomid','q(opt)']
+                    print(row_format.format(*firstrow))
+                    for index, q in enumerate(qpots[idx]):
+                        resname = self.molecule.resnames[idx][index]
+                        atomname = self.molecule.atomnames[idx][index]
+                        atomid = self.molecule.atomids[idx][index]
+                        print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
+                    print()
+                    print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                    print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
+                    if writeMol2 is True:
+                        if self.inp.cheminformatics == 'openeye':
+                            molt = 'oemol'
+                        elif self.inp.cheminformatics == 'rdkit':
+                            molt = 'rdmol'
+                        else:
+                            molt = 'fbmol'
+                        self.write_output(self.molecule.mols[loc+config-1+ add], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
+                    config += 1
             loc += i
         return 0
 
@@ -1033,34 +1058,38 @@ class Respyte_Optimizer:
         print()
         print('    Two stage fit with a1 = %.4f, a2 = %.4f' % (weight1, weight2))
         loc = 0
+        add = 0
         for idx, i in enumerate(self.molecule.nmols):
-            config = 1
-            for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
-                Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
-                apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+            if i == 0:
+                add += 1
+            else:
+                config = 1
+                for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                    Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
+                    apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
 
-                print()
-                print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
-                print()
-                row_format = "{:>10}" * (5)
-                firstrow = ['no.','atomname','resname','atomid','q(opt)']
-                print(row_format.format(*firstrow))
-                for index, q in enumerate(qpots[idx]):
-                    resname = self.molecule.resnames[idx][index]
-                    atomname = self.molecule.atomnames[idx][index]
-                    atomid = self.molecule.atomids[idx][index]
-                    print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
-                print()
-                print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
-                print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
-                if writeMol2 is True:
-                    if self.inp.cheminformatics == 'openeye':
-                        molt = 'oemol'
-                    elif self.inp.cheminformatics == 'rdkit':
-                        molt = 'rdmol'
-                    else:
-                        molt = 'fbmol'
-                    self.write_output(self.molecule.mols[idx], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
-                config += 1
+                    print()
+                    print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
+                    print()
+                    row_format = "{:>10}" * (5)
+                    firstrow = ['no.','atomname','resname','atomid','q(opt)']
+                    print(row_format.format(*firstrow))
+                    for index, q in enumerate(qpots[idx]):
+                        resname = self.molecule.resnames[idx][index]
+                        atomname = self.molecule.atomnames[idx][index]
+                        atomid = self.molecule.atomids[idx][index]
+                        print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
+                    print()
+                    print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
+                    print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
+                    if writeMol2 is True:
+                        if self.inp.cheminformatics == 'openeye':
+                            molt = 'oemol'
+                        elif self.inp.cheminformatics == 'rdkit':
+                            molt = 'rdmol'
+                        else:
+                            molt = 'fbmol'
+                        self.write_output(self.molecule.mols[loc+config-1+ add], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
+                    config += 1
             loc += i
         return 0
