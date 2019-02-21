@@ -446,7 +446,7 @@ class Molecule_OEMol(Molecule_respyte):
                                 atom2 = bond.GetNbr(atom)
                                 if atom2.IsHydrogen():
                                     listofpolar.append(atom2.GetIdx())
-                                elif atom2.IsCarbon() and bond.GetType() != '1':
+                                elif atom2.IsCarbon() and bond.GetOrder() != 1:
                                     listofpolar.append(atom2.GetIdx())
                             # for atom2 in oemol.GetAtoms():
                             #     if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
