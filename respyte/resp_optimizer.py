@@ -1,9 +1,10 @@
+
 from molecule import *
 from readinp_resp import Input
 from molecule_resp import *
 from select_grid import *
 
-from resp_unit import *
+from .resp_unit import *
 
 
 def main():
