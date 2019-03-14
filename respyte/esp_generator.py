@@ -6,11 +6,11 @@ Implementation of open-source vrsion of RESP method
 import os, sys
 import numpy as np
 from shutil import copyfile
-from .readinp_esp import *
-from .readmol import * # read molecules and assign (what?)
-from .molecule import * # copied from forcebalance package and modified
-from .gen_grid_pts import * # take either rdkit ol or oechem mol to generate grid points around molecules (modified CIB's code)
-from .engine import *
+from respyte.readinp_esp import *
+from respyte.readmol import * # read molecules and assign (what?)
+from respyte.molecule import * # copied from forcebalance package and modified
+from respyte.gen_grid_pts import * # take either rdkit ol or oechem mol to generate grid points around molecules (modified CIB's code)
+from respyte.engine import *
 
 def main():
     # cwd = current working directory in which input folder exists

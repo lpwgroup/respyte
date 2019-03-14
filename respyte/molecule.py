@@ -265,7 +265,7 @@ def elem_from_atomname(atomname):
 #| PDB read/write functions |#
 #============================#
 try:
-    from PDB import *
+    from respyte.PDB import *
 except ImportError:
     warn('The pdb module cannot be imported (Cannot read/write PDB files)')
 
@@ -273,7 +273,7 @@ except ImportError:
 #| Mol2 read/write functions |#
 #=============================#
 try:
-    import Mol2
+    import respyte.Mol2
 except ImportError:
     warn('The Mol2 module cannot be imported (Cannot read/write Mol2 files)')
 

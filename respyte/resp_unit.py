@@ -14,8 +14,8 @@ try:
 except ImportError:
     warn(' The Openeye module cannot be imported. ( Please provide equivGoups and listofpolar manually.)')
 
-from molecule import *
-from readinp_resp import Input
+from respyte.molecule import *
+from respyte.readinp_resp import Input
 
 # Global variables
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom

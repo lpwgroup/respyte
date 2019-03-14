@@ -26,7 +26,9 @@ setup(
     license='BSD-3-Clause',
 
     # Which Python importable modules should be included when your package is installed
-    packages=['respyte', "respyte.tests"],
+    packages=['respyte',
+              #"respyte.molecule",
+              "respyte.tests"],
 
     # Optional include package data to ship with your package
     # Comment out this line to prevent the files from being packaged with your software
