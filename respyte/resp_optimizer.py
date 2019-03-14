@@ -1,7 +1,8 @@
-from .molecule import *
-from .readinp_resp import Input
-from .molecule_resp import Molecule_respyte, Molecule_OEMol
-from .select_grid import *
+
+from molecule import *
+from readinp_resp import Input
+from molecule_resp import *
+from select_grid import *
 
 from .resp_unit import *
 
@@ -26,8 +27,9 @@ def main():
     if inp.cheminformatics == 'openeye':
         molecule = Molecule_OEMol()
     elif inp.cheminformatics == 'rdkit':
-        raise NotImplementedError('Sorry. Using rdkit hasnt been implemented! :(')
+        molecule = Molecule_RDMol()
     else:
+        print(' Not using Cheminformatics?')
         molecule = Molecule_respyte()
     molecule.addInp(inp)
 
