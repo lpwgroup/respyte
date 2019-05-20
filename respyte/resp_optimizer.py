@@ -1,10 +1,10 @@
 
-from molecule import *
-from readinp_resp import Input
-from molecule_resp import *
-from select_grid import *
+from respyte.molecule import *
+from respyte.readinp_resp import Input
+from respyte.molecule_resp import *
+from respyte.select_grid import *
 
-from .resp_unit import *
+from respyte.resp_unit import *
 
 
 def main():

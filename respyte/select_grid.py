@@ -1,4 +1,4 @@
-from .molecule import *
+from respyte.molecule import *
 
 BondiRadii = [1.2, 1.4, # exchanged None to 2.0
               1.81, 2.0, 2.0, 1.70, 1.55, 1.52, 1.47, 1.54,

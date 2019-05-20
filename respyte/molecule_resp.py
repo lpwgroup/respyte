@@ -15,7 +15,7 @@ except ImportError:
 from respyte.molecule import *
 from respyte.readinp_resp import Input
 from pathlib import Path
-from readmol import *
+from respyte.readmol import *
 
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
 
