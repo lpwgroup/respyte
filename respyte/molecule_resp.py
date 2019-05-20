@@ -438,16 +438,32 @@ class Molecule_OEMol(Molecule_respyte):
                     # Using openeye tool, make listofpolar,
                     symmetryClass = []
                     listofpolar = []
+                    oechem.OEAssignHybridization(oemol)
                     for atom in oemol.GetAtoms():
                         symmetryClass.append(atom.GetSymmetryClass())
-                        if atom.IsAromatic() == True or atom.IsPolar() == True:
+                        if atom.IsCarbon() and int(atom.GetHyb()) != 3:
                             listofpolar.append(atom.GetIdx())
+                            # ispolar = False
+                            # for bond in atom.GetBonds():
+                            #     atom2 = bond.GetNbr(atom)
+                            #     if bond.GetOrder() == 1 and ispolar == False:
+                            #         continue
+                            #     else:
+                            #         ispolar = True
+                            #         break
+                            # if ispolar == True:
+                                # listofpolar.append(atom.GetIdx())
+                    for atom in oemol.GetAtoms():
+                        if atom.IsHydrogen():
                             for bond in atom.GetBonds():
                                 atom2 = bond.GetNbr(atom)
-                                if atom2.IsHydrogen():
-                                    listofpolar.append(atom2.GetIdx())
-                                elif atom2.IsCarbon() and bond.GetOrder() != 1:
-                                    listofpolar.append(atom2.GetIdx())
+                                if atom2.IsPolar():
+                                    listofpolar.append(atom.GetIdx())
+                                elif atom2.IsCarbon() and atom2.GetIdx() in listofpolar:
+                                    listofpolar.append(atom.GetIdx())
+                        if atom.IsPolar():
+                            listofpolar.append(atom.GetIdx())
+
                             # for atom2 in oemol.GetAtoms():
                             #     if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
                             #         listofpolar.append(atom2.GetIdx())
@@ -765,17 +781,20 @@ def main():
                 espffilepath.append(espfpath)
 
         molecule.addCoordFiles(*coordfilepath)
-        print('-----------------------------------------------------------------------------------------')
-        print('             ##   Check molecule information of %s  ' % molN )
-        print('-----------------------------------------------------------------------------------------')
-        #print('elems:       ', molecule.elems,'\n')
-        print('atom ids:    ', molecule.atomids,'\n')
-        #print('resnames:    ',molecule.resnames,'\n')
-        print('polar atoms: ', molecule.listofpolars[-1],'\n')
+        # print('-----------------------------------------------------------------------------------------')
+        # print('             ##   Check molecule information of %s  ' % molN )
+        # print('-----------------------------------------------------------------------------------------')
+        # #print('elems:       ', molecule.elems,'\n')
+        # print('atom ids:    ', molecule.atomids,'\n')
+        # #print('resnames:    ',molecule.resnames,'\n')
+        # print('polar atoms: ', molecule.listofpolars[-1],'\n')
         #print('charge info: ',molecule.listofchargeinfo[-1],'\n')
         #print('atomidinfo', molecule.atomidinfo)
         #print('-----------------------------------------------------------------------------------------')
     # print(molecule.nmols, len(molecule.nmols))
-    print(len(molecule.elems), len(molecule.atomids), len(molecule.resnames), len(molecule.listofpolars), len(molecule.xyzs))
+    # print(len(molecule.elems), len(molecule.atomids), len(molecule.resnames), len(molecule.listofpolars), len(molecule.xyzs))
+    for idx, i in enumerate(molecule.nmols):
+        print('molecule %i' %(idx+1))
+        print(molecule.listofpolars[idx])
 if __name__ == '__main__':
     main()
