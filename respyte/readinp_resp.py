@@ -34,6 +34,8 @@ class Input:
             self.restraintinfo = {}
             self.gridinfo = None
             self.gridspace = 0.7
+            self.normalization = False
+            self.symmetry  = True
         else:
             self.readinp(inputFile)
 
@@ -76,21 +78,13 @@ class Input:
             newcharge_equal.append([atomname, resname])
         charge_equal = newcharge_equal
 
-        # Check how many molecules and how many conformers are set to be fitted
         nmols = []
         for mol in inp['molecules']:
             nmols.append(int(inp['molecules'][mol]))
 
-        # Read charge fit model (Model2, Model3, 2-stg-fit)
         restraintinfo = inp['restraint']
 
         gridinfo = {}
-        # if 'grid_info' in inp:
-        #     gridinfo['type'] = inp['grid_info']['type']
-        #     gridinfo['radii'] = inp ['grid_info']['radii']
-
-        # if 'shell_select' in inp:
-        #    gridinfo['shell_select'] = inp['shell_select']
         if 'boundary_select' in inp:
             gridinfo['boundary_select'] = inp['boundary_select']
 
@@ -98,6 +92,16 @@ class Input:
             space = inp['grid_space']
         else:
             space = 0.7
+
+        if 'normalization' in inp:
+            normalization = inp['normalization']
+        else:
+            normalization = False
+
+        if 'symmetry' in inp:
+            symmetry = inp['symmetry']
+        else:
+            symmetry = True
 
         self.cheminformatics = cheminformatics
         self.set_charge      = set_charge
@@ -107,10 +111,12 @@ class Input:
         self.restraintinfo   = restraintinfo
         self.gridinfo        = gridinfo
         self.gridspace       = space
-
+        self.normalization   = normalization
+        self.symmetry        = symmetry
 def main():
     inp = Input()
-    inp.readinput(sys.argv[1])
+    inp.readinp(sys.argv[1])
+    print(inp.normalization)
 
 if __name__ == "__main__":
     main()

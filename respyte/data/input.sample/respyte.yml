@@ -30,6 +30,13 @@ charges :
 ## For now, rdkit option is not implemented yet.
 cheminformatics : openeye
 
+## If 'symmetry' is set to be True, it will force symmetry between equivalent atoms during the fitting.
+symmetry : True
+
+## If 'normalization' is set to be True, the size of A matrix will be normalized so that 
+## all A matrices have the same scale with methanol A matrix regardless of the size of molecule or grid set.
+normalization : True
+
 ## In boundary_select, user can select subset of grid.dat
 ## If boundary_select is not set, it uses all grid points in grid.dat for fitting.
 boundary_select: 

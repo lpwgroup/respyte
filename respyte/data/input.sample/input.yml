@@ -28,5 +28,5 @@ grid_setting :
     radii     : bondi # bondi(default)/ modbondi
     method    : HF
     basis     : 6-31g*
-    pcm       : Y
-    solvent   : water
+    pcm       : N
+    # solvent   : water

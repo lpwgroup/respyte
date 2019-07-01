@@ -1,5 +1,4 @@
 import os,sys, copy
-import scipy.stats as stats
 import scipy as sci
 import numpy as np
 import re
@@ -13,7 +12,6 @@ try:
     import openeye.oechem as oechem
 except ImportError:
     warn(' The Openeye module cannot be imported. ( Please provide equivGoups and listofpolar manually.)')
-
 from respyte.molecule import *
 from respyte.readinp_resp import Input
 
@@ -21,17 +19,18 @@ from respyte.readinp_resp import Input
 bohr2Ang = 0.52918825 # change unit from bohr to angstrom
 
 class Respyte_Optimizer:
-    def __init__(self, inp = None, molecule = None):
+    def __init__(self, inp = None, molecule = None, normalization = False):
         self.inp = inp
         self.molecule = molecule
-
+        self.normalization = normalization
     def addInp(self, inpcls):
         assert isinstance(inpcls, Input)
         self.inp = inpcls
-
+        self.normalization = inpcls.normalization
     def addMolecule(self, molcls):
         self.molecule = molcls
-
+    def Normalization(self, normalization):
+        self.normalization = normalization
     def EspDesignMatrix(self, xyzs, gridxyzs, espval):
         """
         Produces a design matrix A and vector B using esp values to solve for charges q in Aq=B.
@@ -99,6 +98,79 @@ class Respyte_Optimizer:
 
         return apot, bpot
 
+    def NewEspDesignMatrix(self, xyzs, gridxyzs, espval, efval, objN):
+        nAtoms = xyzs.shape[0]
+        molbohr = np.array(xyzs.copy())
+        gridx = np.array([xyz[0] for xyz in gridxyzs])
+        gridy = np.array([xyz[1] for xyz in gridxyzs])
+        gridz = np.array([xyz[2] for xyz in gridxyzs])
+        potv = np.array(espval)
+        potvsq = potv*potv
+        ssvpot = np.sum( potvsq)
+        ssvpotsorted = np.sum( np.sort(potvsq) )
+
+        abs_ef = []
+        squared_ef = []
+        for vec in efval:
+            absef = np.sqrt(np.dot(np.array(vec), np.array(vec)))
+            abs_ef.append(absef)
+            squared_ef.append(absef*absef)
+        abs_ef = np.array(abs_ef)
+        squared_ef = np.array(squared_ef)
+        squared_esp = potvsq
+        abs_esp = np.sqrt(squared_esp)
+
+        if objN == 'obj2':
+            weights = abs_esp
+        elif objN == 'obj2_2':
+            weights = (abs_esp**2 + 0.01**2 )**(1/2)
+        elif objN == 'obj3':
+            weights = squared_esp
+        elif objN == 'obj3_2':
+            weights = (squared_esp**2 + 0.01**2 )**(1/2)
+        elif objN == 'obj4':
+            weights = abs_ef
+        elif objN == 'obj4_2':
+            weights = (abs_ef**2 + 0.05**2 )**(1/2)
+        elif objN == 'obj5':
+            weights = squared_ef
+        else:
+            raise NotImplementedError('%s is not implemented. Try obj2, obj3, obj4, or obj5 instead!' % objN)
+        invRijSq = []
+        ainvRijSq = []
+        invRij = []
+        ainvRij = []
+        dxij = []
+        dyij = []
+        dzij = []
+        for atom in range(nAtoms):
+            idx = atom
+            dxi = gridx-molbohr[idx,0]
+            dxij.append( dxi)
+            dyi = gridy-molbohr[idx,1]
+            dyij.append( dyi)
+            dzi = gridz-molbohr[idx,2]
+            dzij.append( dzi)
+            rijsq = dxi*dxi + dyi*dyi +dzi*dzi
+            invRiSq = 1.0/rijsq
+            invRijSq.append( invRiSq )
+            ainvRijSq.append(weights* invRiSq)
+            invRij.append( np.sqrt( invRiSq) )
+            ainvRij.append(weights*np.sqrt( invRiSq))
+        # build A matrix and B vector
+        apot = np.zeros( (nAtoms, nAtoms) )
+        bpot = np.zeros( nAtoms)
+        for j, ainvRi in enumerate( ainvRij):
+            bi = potv*ainvRi
+            bpot[j] = np.sum( np.sort(bi) )
+            for k in range(0, j):
+                sumrijrik = np.sum( np.sort(ainvRi*invRij[k]) )
+                apot[j,k] = sumrijrik
+                apot[k,j] = sumrijrik
+        for j, ainvRiSq in enumerate( ainvRijSq):
+            apot[j,j] = np.sum(ainvRiSq)
+
+        return apot, bpot
     def EfDesignMatrix(self, xyzs, gridxyzs, efval):
         """
         Produces a design matrix A and vector B from electric field values to solve for charges q in Aq=B.
@@ -181,17 +253,9 @@ class Respyte_Optimizer:
         fldv = np.array(efval)
         fldvsq = fldv*fldv
         ssvfld = np.sum( fldvsq)
-        # weight = np.sqrt(ssvpot/ssvfld)
-        # print('weight:',ssvpot/ssvfld,', sqrt of weight:',np.sqrt(ssvpot/ssvfld))
-        # print('compare As:',len(Aesp), Aesp[3],len(Aef), Aef[3])
-        # print('compare Bs:',len(Besp), Besp, len(Bef), Bef)
         weight = ssvpot/ssvfld
-        Acomb =( Aesp + Aef*weight)
-        Bcomb =( Besp + Bef*weight)
-        # print('A after mixin:', Acomb[3])
-        # print('B after mixin:', Bcomb)
-        # input()
-
+        Acomb =( Aesp + Aef*weight)/2
+        Bcomb =( Besp + Bef*weight)/2
         return Acomb, Bcomb
 
     def LagrangeChargeConstraint(self, aInp, bInp, chargeinfo):
@@ -221,7 +285,6 @@ class Respyte_Optimizer:
         charges = []
         check = []
         unique_resname = list(set(chargeinfo[i][1] for i,info in enumerate(chargeinfo)))
-        # print(unique_resname)
         for lstofidx, resname, netchg in chargeinfo:
             if len(lstofidx) == 0 :
                 unique_resname.remove(resname)
@@ -245,8 +308,6 @@ class Respyte_Optimizer:
                 for i in range(nAtom, nAtom+len(unique_resname)):  # Need to remove duplicates
                     lastrow.append(0.0)
                 lastrows.append(lastrow)
-        # print(list(len(lastrows[i]) for i in range(len(lastrows))))
-        # print('Here', aInp.shape)
         apot = []
         for i, row in enumerate(aInp):
             newrow = list(row)
@@ -352,10 +413,7 @@ class Respyte_Optimizer:
         crossProd = np.sum(np.dot(qpot, bpot))
         modelSumSq = np.dot(qpot,np.dot(apot,qpot))
         chiSq = sumSq - 2*crossProd + modelSumSq
-        print(' max(Aij) : ', np.amax(apot))
-        print(' chi esp  : ', chiSq)
-        scalingFac = (float(self.inp.gridspace)/0.7)**3
-        print(' chi esp after Norm : ', chiSq*scalingFac)
+        chiSq_rstr = np.sum((qpot**2 + (0.1)**2)**(0.5)-0.1)
         rrmsval = np.sqrt(chiSq/sumSq)
         return rrmsval
 
@@ -384,7 +442,6 @@ class Respyte_Optimizer:
         apot = copy.deepcopy(np.array(apot))
         bpot = copy.deepcopy(np.array(bpot))
         qpot = copy.deepcopy(np.array(qpot))
-        # sumSq = np.sum(np.dot(espval,espval))
         fldv = np.array(efval)
         fldvsq = fldv*fldv
         ssvfld = np.sum( fldvsq)
@@ -394,9 +451,43 @@ class Respyte_Optimizer:
         rrmsval = np.sqrt(chiSq/ssvfld)
         return rrmsval
 
-##########################################################################################################
-###               Functions for avoiding any duplicates in different fitting models                    ###
-##########################################################################################################
+    def centerofmass(self, xyzs, elems):
+        M = sum(float(list(PeriodicTable.values())[int(elems[i]-1)]) for i in range(len(elems)))
+        return np.sum([xyzs[i,:] *float(list(PeriodicTable.values())[int(elems[i]-1)]) / M for i in range(len(xyzs))],axis=0)
+
+    def MMdipole(self, xyzs, elems, qpot):
+        com = self.centerofmass(xyzs, elems)
+        mux = 0
+        muy = 0
+        muz = 0
+        for qi, xyzi in zip(qpot, xyzs):
+            mux += qi*(xyzi[0]-com[0])
+            muy += qi*(xyzi[1]-com[1])
+            muz += qi*(xyzi[2]-com[2])
+            ri_squared = np.dot(np.array(xyzi)-com,np.array(xyzi)-com)
+        mu_squared = mux**2+ muy**2+muz**2
+        mu =  np.sqrt(mu_squared)*bohr2ang/0.20819434
+        return mu
+
+    def Ncond(self, apotInp, elemInp, qpotInp, Options):
+        AA = copy.deepcopy(apotInp)
+        for i in range(len(elemInp)):
+            if elemInp[i] == 'H' or elemInp[i] == 1:
+                continue
+            else:
+                if 'weights' in Options and 'tightness' in Options:
+                    weights = Options['weights']
+                    AA[i][i] -= weights[i]*qpotInp[i] / np.sqrt(qpotInp[i]**2 + float(Options['tightness'])**2)**3
+                else:
+                    continue
+        try:
+            w, v = np.linalg.eig(AA)
+            cond = max(abs(w))/min(abs(w))
+        except:
+            print('condition number calculation failed.')
+            cond = 0
+        return cond
+
     def combineMatrices(self):
         loc = 0
         apots = []
@@ -404,37 +495,50 @@ class Respyte_Optimizer:
         atomid_comb = []
         elem_comb = []
         Size = 0
+        add = 0
         for idx, i in enumerate(self.molecule.nmols):
             if i == 0:
-                pass
+                add += 1
             else:
                 size = len(self.molecule.xyzs[loc])
                 Size += size
                 apot_added = np.zeros((size, size))
                 bpot_added = np.zeros((size))
-                for xyz, gridxyz, espval, efval  in zip(self.molecule.xyzs[loc:loc+i], self.molecule.gridxyzs[loc:loc+i], self.molecule.espvals[loc:loc+i], self.molecule.efvals[loc:loc+i]):
+                for mol, xyz, gridxyz, espval, efval  in zip(self.molecule.mols[loc+add:loc+i+add], self.molecule.xyzs[loc:loc+i], self.molecule.gridxyzs[loc:loc+i], self.molecule.espvals[loc:loc+i], self.molecule.efvals[loc:loc+i]):
                     if 'matrices' in self.inp.restraintinfo:
                         if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
-
                             apot, bpot = self.EspEfDesignMatrix(xyz, gridxyz, espval, efval)
                         elif self.inp.restraintinfo['matrices'] == ['esp']:
                             apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
                         elif self.inp.restraintinfo['matrices'] == ['ef']:
                             apot, bpot = self.EfDesignMatrix(xyz, gridxyz, efval)
+                        elif self.inp.restraintinfo['matrices'] == ['obj2']:
+                            apot, bpot = self.NewEspDesignMatrix(xyz, gridxyz, espval, efval, 'obj2')
+                        elif self.inp.restraintinfo['matrices'] == ['obj2_2']:
+                            apot, bpot = self.NewEspDesignMatrix(xyz, gridxyz, espval, efval, 'obj2_2')
+                        elif self.inp.restraintinfo['matrices'] == ['obj3']:
+                            apot, bpot = self.NewEspDesignMatrix(xyz, gridxyz, espval, efval, 'obj3')
+                        elif self.inp.restraintinfo['matrices'] == ['obj3_2']:
+                            apot, bpot = self.NewEspDesignMatrix(xyz, gridxyz, espval, efval, 'obj3_2')
+                        elif self.inp.restraintinfo['matrices'] == ['obj4']:
+                            apot, bpot = self.NewEspDesignMatrix(xyz, gridxyz, espval, efval, 'obj4')
+                        elif self.inp.restraintinfo['matrices'] == ['obj4_2']:
+                            apot, bpot = self.NewEspDesignMatrix(xyz, gridxyz, espval, efval, 'obj4_2')
+                        elif self.inp.restraintinfo['matrices'] == ['obj5']:
+                            apot, bpot = self.NewEspDesignMatrix(xyz, gridxyz, espval, efval, 'obj5')
                     else:
                         apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                    # Normalization
-                    print(' max(Aij) before Normalization: ', np.amax(apot) )
-                    #scalingFac = np.amax(apot)
-                    scalingFac = (float(self.inp.gridspace)/0.7)**3
-                    print(' scalingFac : ', scalingFac)
-                    apot *= scalingFac
-                    bpot *= scalingFac
-
                     apot_added += apot
                     bpot_added += bpot
                 apot_added /= i
                 bpot_added /= i
+                if self.normalization == True:
+                    norm = sci.linalg.norm(apot_added, 'fro')
+                    prefac  = 77.87* len(self.molecule.elems[idx]) / (norm * 6.0)
+                    print('Norm:', sci.linalg.norm(apot_added, 'fro'), ', prefac(77.87*Natom/norm/6):', prefac)
+                    apot_added *= prefac
+                    bpot_added *= prefac
+
                 apots.append(apot_added)
                 bpots.append(bpot_added)
                 for j in self.molecule.atomids[idx]:
@@ -442,7 +546,9 @@ class Respyte_Optimizer:
                 for j in self.molecule.elems[idx]:
                     elem_comb.append(j)
                 loc += i
-
+        totN = 0
+        for mol in self.molecule.elems:
+            totN += len(mol)
         apot_comb  = np.zeros((Size, Size))
         bpot_comb = np.zeros((Size))
 
@@ -459,8 +565,7 @@ class Respyte_Optimizer:
             for i in range(size):
                 bpot_comb[loc+i] = bpot[i]
             loc += size
-        # print(apots, apot_comb[0], len(apots[0]),'+',len(apots[1]),'=', len(apot_comb))
-        # input()
+
         return apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb
 
     def combine_chargeinfo(self, listofchargeinfo, nAtoms):
@@ -471,16 +576,12 @@ class Respyte_Optimizer:
         """
         loc = 0
         newlistofchargeinfo = []
-        # print(listofchargeinfo)
-        # input()
         for idx, chargeinfo in enumerate(listofchargeinfo):
             for indices, resname, charge in chargeinfo:
                 newindices = [i+loc for i in indices]
                 newchargeinfo = [newindices, resname, charge]
                 newlistofchargeinfo.append(newchargeinfo)
             loc += nAtoms[idx]
-        # print(newlistofchargeinfo)
-        # input()
         return newlistofchargeinfo
 
     def get_nAtoms(self, nList):
@@ -520,7 +621,7 @@ class Respyte_Optimizer:
         equivGroup = self.removeSingleElemList(equivGroup)
         return equivGroup
 
-    def force_symmetry(self, apotInp, bpotInp, elem, atomid, equivGroupInp):
+    def force_symmetry(self, apotInp, bpotInp, elem, atomid, listofweights, equivGroupInp):
         """
         Force symmetry on matrices using equivGroupInp provided
 
@@ -530,17 +631,13 @@ class Respyte_Optimizer:
 
         elem_sym = copy.deepcopy(elem)
         atomid_sym = copy.deepcopy(atomid)
-
+        weights_sym = copy.deepcopy(listofweights)
         sym = []
-        # print(equivGroupInp, len(apot_sym), apot_sym.shape)
-        # input()
         for equivlst in equivGroupInp:
             for idx, i in enumerate(equivlst):
                 if idx == 0:
                     a = i
                 elif idx > 0:
-                    # print(a,i)
-                    # print(len(apot_sym[a]), len(apot_sym[i]))
                     apot_sym[a,:] += apot_sym[i,:]
                     apot_sym[:,a] += apot_sym[:,i]
                     bpot_sym[a] += bpot_sym[i]
@@ -552,20 +649,18 @@ class Respyte_Optimizer:
             bpot_sym = np.delete(bpot_sym, i)
             elem_sym = np.delete(elem_sym, i)
             atomid_sym = np.delete(atomid_sym, i)  # after forcing symmetry ,it makes singular matrix problem:/
+            weights_sym = np.delete(weights_sym, i)
 
+        return apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym
 
-        return apot_sym, bpot_sym, elem_sym, atomid_sym
-
-    def apply_set_charge(self, apotInp, bpotInp, atomidInp, atomidinfo, set_charge):
+    def apply_set_charge(self, apotInp, bpotInp, elemInp, atomidInp, atomidinfo, set_charge, weightsInp, tightness):
         """
         fix charges listed in set_charge and calculate linear algebra
 
         """
-
         fixedatoms = []
         setcharges = []
         for atom in set_charge:
-            #setcharges.append(set_charge[atom]['charge'])
             val = {'resname': set_charge[atom]['resname'], 'atomname': set_charge[atom]['atomname']}
             for idx, atomid in enumerate(atomidInp):
                 if val in atomidinfo[atomid]:
@@ -574,6 +669,8 @@ class Respyte_Optimizer:
                         setcharges.append(set_charge[atom]['charge'])
         apot_free = copy.deepcopy(apotInp)
         bpot_free = copy.deepcopy(bpotInp)
+        elem_free = copy.deepcopy(elemInp)
+        weights_free = copy.deepcopy(weightsInp)
 
         for idx, i in enumerate(fixedatoms):
             bpot_free -=setcharges[idx]*apot_free[:,i]
@@ -590,6 +687,8 @@ class Respyte_Optimizer:
             apot_free = np.delete(apot_free, i, axis = 0)
             apot_free = np.delete(apot_free, i, axis = 1)
             bpot_free = np.delete(bpot_free, i)
+            elem_free = np.delete(elem_free, i)
+            weights_free = np.delete(weights_free, i)
         if len(apot_free) == 0:
             qpot_free = []
         else:
@@ -619,13 +718,9 @@ class Respyte_Optimizer:
             loc += i
             qpots.append(qpot)
         return qpots
-##########################################################################################################
-###                       Charge fit models (Model2, Model3, two-stg-fit)                              ###
-##########################################################################################################
 
     def write_output(self, mol, qpot, moltype='oemol', outfile= 'out.mol2'):
         if moltype is 'oemol':
-            # set partial charges
             for idx, atom in enumerate(mol.GetAtoms()):
                 atom.SetPartialCharge(qpot[idx])
 
@@ -636,148 +731,14 @@ class Respyte_Optimizer:
 
         elif moltype is 'rdmol':
             if isinstance(mol, rdchem.Mol):
-                # what I need:
-                print(' Can not generate mol2 file using RDKit yet, will be implemented soon!')
+                print(' Can not generate mol2 file without using Openeye toolkit yet, will be implemented soon!')
             else:
                 raise RuntimeError(' Failed to identify the RDKit molecule object!')
-
-
         else:
             if isinstance(mol, Molecule):
-                # Check if given molecule object contains atomtype, resid and resname
-                if 'atomtype' not in mol.Data:
-                    mol.atomtype = mol.elem
-                if 'resname' not in mol.Data:
-                    mol.resname = list('MOL' for i in mol.elem)
-                    mol.resid = list(1 for i in mol.elem)
-                charge_type = 'RESPYTE_CHARGE'
-                out = []
-                for I in selection:
-                    out.append('@<TRIPOS>MOLECULE')
-                    out.append('Mol2 generated by resp_optimizer')
-                    out.append('%i %i 0 0 0' % (len(mol.elem), len(mol.bonds)))
-                    out.append('SMALL')
-                    out.append('%s\n' % charge_type)
-                    out.append('@<TRIPOS>ATOM')
-                    for idx, xyz in enumerate(mol.xyzs[I]):
-                        out.append(format_mol2_atom(idx+1, mol.elem[idx], xyz, mol.atomtype[idx], mol.resid[idx], mol.resname[idx], round(qpot[idx],4)))
-                    out.append('@<TRIPOS>BOND')
-                    for idx, i in enumerate(mol.bonds):
-                        out.append(format_mol2_bond(idx+1, i[0]+1, i[1]+1, 1)) # for now, all bonds are assumed to be single bonds
+                print(' Can not generate mol2 file without using Openeye toolkit yet, will be implemented soon!')
             else:
                 raise RuntimeError('Failed to identify the molecule object.')
-
-    def Model2qpot(self, weight):
-        """
-        Solves for q vector in Aq=B (Model 2) with a given restraint weight(a). No restraint on hydrogen atoms.
-
-        Parameters
-        ----------
-        weight : float
-            a, scaled facotr which define sthe asymptotic limits of the strength of the restrant.
-
-        Returns
-        -------
-        list
-
-            list of extended q vectors
-        """
-        # Combine A matrices and B vectors into apot_comb, bpot_comb
-        apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb = self.combineMatrices()
-
-        # THen apply Model 2 restraint  -> newapot_comb
-        newapot_comb = copy.deepcopy(np.array(apot_comb))
-        N = len(newapot_comb)
-        for i in range(N):
-            if elem_comb[i] == 1:
-                pass
-            else:
-                newapot_comb[i][i] += weight
-
-        # nAtoms : list of number of atoms in each molecule
-        nAtoms = self.get_nAtoms(self.molecule.elems)
-        # newlistofchareginfo : charge info with 'global indices'
-        newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
-
-        # Lagrange Charge Constraint on comb matrices
-        apot_constrained, bpot_constrained = self.LagrangeChargeConstraint( newapot_comb, bpot_comb, newlistofchargeinfo)
-
-        # Force symmetry based on the atomid
-        equivGroup = self.get_equivGroup(atomid_comb)
-        # print(equivGroup)
-        # input()
-        apot_sym, bpot_sym, elem_sym, atomid_sym = self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, equivGroup)
-
-        # consider set_charge
-        qpot_sym = self.apply_set_charge(apot_sym, bpot_sym, atomid_sym, self.molecule.atomidinfo, self.inp.set_charge)
-        indices_sym = self.getCondensedIndices(len(apot_comb), equivGroup)
-        qpot_expanded = self.Expandqpot(qpot_sym, indices_sym)
-
-        # split qpot_Expanded into qpots for each molecule
-        qpots = self.cut_qpot_comb(qpot_expanded, nAtoms)
-
-        # write mol2 files with fitted charges.
-        writeMol2 = False
-        path = os.getcwd()
-        writeMol2 = False
-        path = os.getcwd()
-        if os.path.isdir('%s/resp_output' % path):
-            print(' resp_output dir already exists!!! will overwrite anyway:/')
-            writeMol2 = True
-        else:
-            writeMol2 = True
-            os.mkdir('%s/resp_output' % path)
-        # write text file for collecting result:)
-        with open('%s/resp_output/result.txt' % path,'w') as f:
-            f.write('respyte result\n')
-            f.write(' Model 2')
-            if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
-                f.write(' RESPF\n')
-            elif self.inp.restraintinfo['matrices'] == ['esp']:
-                f.write(' RESP\n')
-            elif self.inp.restraintinfo['matrices'] == ['ef']:
-                f.write(' REF\n')
-            f.write(' weight = %8.4f\n' % (weight))
-            for idx, qpot in enumerate(qpots):
-                f.write('mol%d\n' % (idx+1))
-                for charge in qpot:
-                    f.write('%8.4f\n' % round(charge,4))
-        print()
-        print('-------------------------------------------------------')
-        print()
-        print('                   Model 2 with a =%.4f' % (weight))
-        loc = 0
-        for idx, i in enumerate(self.molecule.nmols):
-            config = 1
-            for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
-                Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
-                apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
-                print()
-                print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
-                print()
-                row_format = "{:>10}" * (5)
-                firstrow = ['no.','atomname','resname','atomid','q(opt)']
-                print(row_format.format(*firstrow))
-                for index, q in enumerate(qpots[idx]):
-                    resname = self.molecule.resnames[idx][index]
-                    atomname = self.molecule.atomnames[idx][index]
-                    atomid = self.molecule.atomids[idx][index]
-                    print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
-                print()
-                print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
-                print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
-                if writeMol2 is True:
-                    if self.inp.cheminformatics == 'openeye':
-                        molt = 'oemol'
-                    elif self.inp.cheminformatics == 'rdkit':
-                        molt = 'rdmol'
-                    else:
-                        molt = 'fbmol'
-                    self.write_output(self.molecule.mols[idx], qpots[idx], moltype = molt,
-                                    outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
-                config += 1
-            loc += i
-        return 0
 
     def Model3Amatrix(self, apotInp, weight, tightness, qpotInp, listofelem):
         """
@@ -805,40 +766,46 @@ class Respyte_Optimizer:
         newapot = copy.deepcopy(np.array(apotInp))
         N =  len(newapot)
         if N != len(listofelem):
-            print(' List of elements should have the same size with A0 matrix.')
+            print('List of elements should have the same size with A0 matrix.')
             return False
+        list_of_weights = []
+        for i in range(N):
+            list_of_weights.append(weight)
+
         for i in range(N):
             if listofelem[i] == 'H' or listofelem[i] == 1:
                 continue
             else:
                 newapot[i][i] += weight / np.sqrt(qpotInp[i]**2 + tightness**2)
-        return newapot
+
+        return newapot, list_of_weights
 
     def Model3qpotFn(self, nAtoms, apot_comb, bpot_comb, weight, tightness, elem_comb, atomid_comb, atomidinfo, chargeinfo_comb, set_charge, equivGroupInp):
 
-
-
         def Model3Iteration(qpot_temp):
-            newapot = self.Model3Amatrix(apot_comb, weight, tightness, qpot_temp, elem_comb)
-            # print(len(elem_comb), len(apot_comb), len(newapot))
-            # input()
+            newapot, list_of_weights = self.Model3Amatrix(apot_comb, weight, tightness, qpot_temp, elem_comb)
             apot_constrained, bpot_constrained = self.LagrangeChargeConstraint(newapot, bpot_comb, chargeinfo_comb)
-            # Force symmetry based on the atomid
-            #equivGroup = self.get_equivGroup(atomid_comb)
-            apot_sym, bpot_sym, elem_sym, atomid_sym = self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, equivGroupInp)
-            # consider set_charge
-            qpot_sym = self.apply_set_charge(apot_sym, bpot_sym, atomid_sym, atomidinfo, set_charge)
+            apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym = self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, list_of_weights, equivGroupInp)
+            qpot_sym = self.apply_set_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, set_charge, weights_sym, tightness)
             indices_sym = self.getCondensedIndices(len(apot_comb), equivGroupInp)
             qpot_expanded = self.Expandqpot(qpot_sym, indices_sym)
-            return qpot_expanded
+            return qpot_expanded, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym
 
         Size = len(apot_comb)
         qpotInitial = np.zeros((Size))
-        for i in range(10):
-            qpotNext = Model3Iteration(qpotInitial)
+        for i in range(50):
+            qpotNext, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym = Model3Iteration(qpotInitial)
             if np.linalg.norm(qpotNext-qpotInitial) < 1e-8: break
             qpotInitial = qpotNext.copy()
 
+        #calculate condition number after fitting
+        Options = {'weights':list_of_weights, 'tightness': tightness}
+        cond1 = self.Ncond( apot_comb, elem_comb, qpotNext, Options)
+        cond2 = self.Ncond( apot_sym, elem_sym, qpot_sym, Options)
+        print('###############################################################')
+        print('  After expansion:', cond1)
+        print('  Before expansion:', cond2)
+        print('###############################################################')
         # split qpot_Expanded into qpots for each molecule
         qpots = self.cut_qpot_comb(qpotNext, nAtoms)
         return qpots
@@ -851,7 +818,6 @@ class Respyte_Optimizer:
         qpots = self.Model3qpotFn(nAtoms, apot_comb, bpot_comb, weight, tightness,
                                   elem_comb, atomid_comb, self.molecule.atomidinfo,
                                   newlistofchargeinfo, self.inp.set_charge, equivGroup)
-
 
         # write mol2 files with fitted charges.
         writeMol2 = False
@@ -882,13 +848,16 @@ class Respyte_Optimizer:
         print()
         print('              Model 3 with a = %.4f' % (weight))
         loc = 0
+        esprrmss = []
+        efrrmss  = []
         add = 0
         for idx, i in enumerate(self.molecule.nmols):
             if i == 0:
                 add += 1
+                esprrmss.append(0)
+                efrrmss.append(0)
             else:
                 config = 1
-
                 for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
                     Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
                     apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
@@ -904,8 +873,13 @@ class Respyte_Optimizer:
                         atomid = self.molecule.atomids[idx][index]
                         print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
                     print()
-                    print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
-                    print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
+                    esprrms = self.espRRMS(apot, bpot, qpots[idx], espval)
+                    efrrms  = self.efRRMS(Aef, Bef, qpots[idx], efval)
+                    esprrmss.append(esprrms)
+                    efrrmss.append(efrrms)
+
+                    print(' espRRMS : ', "%.4f" % esprrms)
+                    print(' efRRMS  : ', "%.4f" % efrrms)
                     if writeMol2 is True:
                         if self.inp.cheminformatics == 'openeye':
                             molt = 'oemol'
@@ -916,14 +890,13 @@ class Respyte_Optimizer:
                         self.write_output(self.molecule.mols[loc+config-1+ add], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                     config += 1
             loc += i
-        return 0
+        return qpots, esprrmss, efrrmss
 
     def twoStageFit(self, weight1, weight2, tightness):
 
-        apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb = self.combineMatrices()
+        apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb= self.combineMatrices()
         nAtoms = self.get_nAtoms(self.molecule.elems)
-        equivGroup_comb = self.get_equivGroup(atomid_comb) # equivGroup_combined
-        # I dont think this 'nonpolars' is that useful. But for now, I need it.
+        equivGroup_comb = self.get_equivGroup(atomid_comb)
         nonpolars = []
         for index, listofpolar in enumerate(self.molecule.listofpolars):
             nonpolar = []
@@ -933,7 +906,6 @@ class Respyte_Optimizer:
                 else:
                     nonpolar.append(i)
             nonpolars.append(nonpolar)
-        # print(nonpolars)
         listofpolar_comb = []
         listofnonpolar_comb = []
         loc = 0
@@ -952,11 +924,6 @@ class Respyte_Optimizer:
                 listofPolarEquiv.append(equivGroup)
             else:
                 listofNonpolarEquiv.append(equivGroup)
-        # print('listofpolar_comb', listofpolar_comb)
-        # print('listofnonpolar_comb', listofnonpolar_comb)
-        # print('atomid_comb', atomid_comb)
-        # print(equivGroup_comb)
-        # input()
         """
         1st stage: force symmetry on polar atoms and apply smaller restraint weight.
 
@@ -965,6 +932,49 @@ class Respyte_Optimizer:
         qpots_stg1 = self.Model3qpotFn(nAtoms, apot_comb, bpot_comb, weight1, tightness,
                                        elem_comb, atomid_comb, self.molecule.atomidinfo,
                                        newlistofchargeinfo, self.inp.set_charge, listofPolarEquiv)
+
+        print()
+        print('-------------------------------------------------------')
+        print()
+        print('     Charges from the first stage (for checking)        ')
+        loc = 0
+        esprrmss = []
+        efrrmss  = []
+        add = 0
+        for idx, i in enumerate(self.molecule.nmols):
+            if i == 0:
+                add += 1
+                esprrmss.append(0)
+                efrrmss.append(0)
+            else:
+                config = 1
+                for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                    Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
+                    apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+
+                    print()
+                    print('   -=#=- (!!1st stg!!) Molecule %d config. %d -=#=-' % (idx+1, config))
+                    print()
+                    row_format = "{:>10}" * (5)
+                    firstrow = ['no.','atomname','resname','atomid','q(opt)']
+                    print(row_format.format(*firstrow))
+                    for index, q in enumerate(qpots_stg1[idx]):
+                        resname = self.molecule.resnames[idx][index]
+                        atomname = self.molecule.atomnames[idx][index]
+                        atomid = self.molecule.atomids[idx][index]
+                        print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
+                    print()
+                    esprrms = self.espRRMS(apot, bpot, qpots_stg1[idx], espval)
+                    efrrms  = self.efRRMS(Aef, Bef, qpots_stg1[idx], efval)
+                    esprrmss.append(esprrms)
+                    efrrmss.append(efrrms)
+                    print(' espRRMS(1st stg) : ', "%.4f" % esprrms )
+                    print(' efRRMS(1st stg)  : ', "%.4f" % efrrms  )
+                    config += 1
+
+            loc += i
+
+
         """
         2nd stage: force symmetry on nonpolar atoms and while fixing fitted polar charge from 1st stg.
 
@@ -976,7 +986,6 @@ class Respyte_Optimizer:
             for charge in qpot:
                 qpot_nonpolar.append(charge)
 
-        # cal. nonpolar charge
         nonpolarchargeinfo = []
         for idx, chargeinfo in enumerate(newlistofchargeinfo):
             indices, resname, charge = chargeinfo
@@ -988,23 +997,16 @@ class Respyte_Optimizer:
                 else:
                     nonpolarindices.append(listofnonpolar_comb.index(i))
             nonpolarchargeinfo.append([nonpolarindices,resname, charge-polarcharges])
-        # print(newlistofchargeinfo, nonpolarchargeinfo)
-        #input()
-
         atomid_nonpolar = [atomid_comb[i] for i in listofnonpolar_comb]
         elem_nonpolar = [elem_comb[i] for i in listofnonpolar_comb]
 
         newlistofNonpolarEquiv  = []
-        # print('#########################################################')
-        # print('listofNonpolarEquiv', listofNonpolarEquiv)
-        # print('listofnonpolar_comb', listofnonpolar_comb)
         for nonpolarequivgroup in listofNonpolarEquiv:
             newindices = []
             for i in nonpolarequivgroup:
                 idx = listofnonpolar_comb.index(i)
                 newindices.append(idx)
             newlistofNonpolarEquiv.append(newindices)
-        # print('newlistofNonpolarEquiv', newlistofNonpolarEquiv)
         listofpolar_comb.sort()
         for i in listofpolar_comb:
             bpot_nonpolar -= qpot_nonpolar[i]*apot_nonpolar[:,i]
@@ -1018,7 +1020,6 @@ class Respyte_Optimizer:
         for idx, Natom in enumerate(nAtoms):
             Nnonpolar = Natom - len(self.molecule.listofpolars[idx])
             Nnonpolars.append(Nnonpolar)
-        # print('Nnonpolar', Nnonpolar)
         qpots_stg2 = self.Model3qpotFn(Nnonpolars, apot_nonpolar, bpot_nonpolar, weight2, tightness,
                                   elem_nonpolar, atomid_nonpolar, self.molecule.atomidinfo,
                                   nonpolarchargeinfo, self.inp.set_charge, newlistofNonpolarEquiv)
@@ -1058,10 +1059,14 @@ class Respyte_Optimizer:
         print()
         print('    Two stage fit with a1 = %.4f, a2 = %.4f' % (weight1, weight2))
         loc = 0
+        esprrmss = []
+        efrrmss  = []
         add = 0
         for idx, i in enumerate(self.molecule.nmols):
             if i == 0:
                 add += 1
+                esprrmss.append(0)
+                efrrmss.append(0)
             else:
                 config = 1
                 for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
@@ -1079,9 +1084,198 @@ class Respyte_Optimizer:
                         atomname = self.molecule.atomnames[idx][index]
                         atomid = self.molecule.atomids[idx][index]
                         print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
+                    print('MM dipole from two-stg-fit: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
                     print()
-                    print(' espRRMS : ', "%.4f" % self.espRRMS(apot, bpot, qpots[idx], espval))
-                    print(' efRRMS  : ', "%.4f" % self.efRRMS(Aef, Bef, qpots[idx], efval))
+                    esprrms = self.espRRMS(apot, bpot, qpots[idx], espval)
+                    efrrms  = self.efRRMS(Aef, Bef, qpots[idx], efval)
+                    esprrmss.append(esprrms)
+                    efrrmss.append(efrrms)
+                    print(' espRRMS : ', "%.4f" % esprrms)
+                    print(' efRRMS  : ', "%.4f" % efrrms)
+                    if writeMol2 is True:
+                        if self.inp.cheminformatics == 'openeye':
+                            molt = 'oemol'
+                        elif self.inp.cheminformatics == 'rdkit':
+                            molt = 'rdmol'
+                        else:
+                            molt = 'fbmol'
+                        self.write_output(self.molecule.mols[loc+config-1+ add], qpots[idx], moltype = molt, outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
+                    config += 1
+
+            loc += i
+
+        return  qpots, esprrmss, efrrmss
+
+    def Model4Amatrix(self, apotInp, weight1, weight2, tightness, qpotInp, listofelem,  listofpolar_comb):
+        """
+        Builds Model 4 A matrix from A0. No restraint on hydrogen atoms.
+
+        Parameters
+        ----------
+
+        apotInp : np.ndarray
+            "A" matrix; 2D array with dimension (# of atoms)
+        weight1 : float
+            a1, scaled factor(for nonpolar atoms) which defines the asymptotic limits of the strength of the restraint.
+        weight2 : float
+            a2, scaled factor(for polar atoms) which defines the asymptotic limits of the strength of the restraint.
+        tightness : float
+            b, tightness of the hyperbola around its minimum.
+        qpotInp : list
+            'q' vector
+        listofelem : list
+            list of elements whose charges are being fitted
+
+        Returns
+        -------
+        np.ndarray
+            Model 4 A matrix
+        """
+        newapot = copy.deepcopy(np.array(apotInp))
+        N =  len(newapot)
+        list_of_weights = []
+        for i in range(N):
+            if i in listofpolar_comb:
+                list_of_weights.append(weight2)
+            else:
+                list_of_weights.append(weight1)
+
+        if N != len(listofelem):
+            print('List of elements should have the same size with A0 matrix.')
+            return False
+        for i in range(N):
+            if listofelem[i] == 'H' or listofelem[i] == 1:
+                continue
+            else:
+                newapot[i][i] += list_of_weights[i] / np.sqrt(qpotInp[i]**2 + tightness**2)
+        return newapot, list_of_weights
+
+    def Model4qpotFn(self, nAtoms, apot_comb, bpot_comb, weight1, weight2, tightness, elem_comb, atomid_comb,
+                     atomidinfo, chargeinfo_comb, set_charge, equivGroupInp, listofpolar_comb):
+
+        def Model4Iteration(qpot_temp):
+            newapot, list_of_weights = self.Model4Amatrix(apot_comb, weight1, weight2, tightness, qpot_temp, elem_comb,  listofpolar_comb)
+
+            apot_constrained, bpot_constrained = self.LagrangeChargeConstraint(newapot, bpot_comb, chargeinfo_comb)
+            apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym= self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, list_of_weights, equivGroupInp)
+            # consider set_charge
+            qpot_sym = self.apply_set_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, set_charge, weights_sym, tightness)
+            indices_sym = self.getCondensedIndices(len(apot_comb), equivGroupInp)
+            qpot_expanded = self.Expandqpot(qpot_sym, indices_sym)
+            return qpot_expanded, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym
+
+        Size = len(apot_comb)
+        qpotInitial = np.zeros((Size))
+        for i in range(50):
+            qpotNext, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym = Model4Iteration(qpotInitial)
+            if np.linalg.norm(qpotNext-qpotInitial) < 1e-8: break
+            qpotInitial = qpotNext.copy()
+        #calculate condition number after fitting
+        Options = {'weights':list_of_weights, 'tightness': tightness}
+        cond1 = self.Ncond( apot_comb, elem_comb, qpotNext, Options)
+        cond2 = self.Ncond( apot_sym, elem_sym, qpot_sym, Options)
+        print('###############################################################')
+        print('  After expansion:', cond1)
+        print('  Before expansion:', cond2)
+        print('###############################################################')
+        # split qpot_Expanded into qpots for each molecule
+        qpots = self.cut_qpot_comb(qpotNext, nAtoms)
+        return qpots
+
+    def Model4qpot(self, weight1, weight2, tightness):
+        apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb = self.combineMatrices()
+        nAtoms = self.get_nAtoms(self.molecule.elems)
+        equivGroup = self.get_equivGroup(atomid_comb)
+
+        nonpolars = []
+        for index, listofpolar in enumerate(self.molecule.listofpolars):
+            nonpolar = []
+            for i in range(nAtoms[index]):
+                if i in listofpolar:
+                    pass
+                else:
+                    nonpolar.append(i)
+            nonpolars.append(nonpolar)
+        # print(nonpolars)
+        listofpolar_comb = []
+        listofnonpolar_comb = []
+        loc = 0
+        for idx, listofpolar in enumerate(self.molecule.listofpolars):
+            for polaridx in listofpolar:
+                listofpolar_comb.append(loc+polaridx)
+            loc += len(self.molecule.elems[idx])
+        for i in range(len(elem_comb)):
+            if i not in listofpolar_comb:
+                listofnonpolar_comb.append(i)
+
+        newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
+        qpots = self.Model4qpotFn(nAtoms, apot_comb, bpot_comb, weight1, weight2, tightness,
+                                  elem_comb, atomid_comb, self.molecule.atomidinfo,
+                                  newlistofchargeinfo, self.inp.set_charge, equivGroup, listofpolar_comb)
+
+
+        # write mol2 files with fitted charges.
+        writeMol2 = False
+        path = os.getcwd()
+        if os.path.isdir('%s/resp_output' % path):
+            print(' resp_output dir already exists!!! will overwrite anyway:/')
+            writeMol2 = True
+        else:
+            writeMol2 = True
+            os.mkdir('%s/resp_output' % path)
+        # write text file for collecting result:)
+        with open('%s/resp_output/result.txt' % path,'w') as f:
+            f.write('respyte result\n')
+            f.write(' Model 4')
+            if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                f.write(' RESPF\n')
+            elif self.inp.restraintinfo['matrices'] == ['esp']:
+                f.write(' RESP\n')
+            elif self.inp.restraintinfo['matrices'] == ['ef']:
+                f.write(' REF\n')
+            f.write(' weight1 = %8.4f, weight2 = %8.4f, tightness = %8.4f\n' % (weight1, weight2, tightness))
+            for idx, qpot in enumerate(qpots):
+                f.write('mol%d\n' % (idx+1))
+                for charge in qpot:
+                    f.write('%8.4f\n' % round(charge,4))
+        print()
+        print('-------------------------------------------------------')
+        print()
+        print('              Model 4 with a1 = %.4f, a2 = %.4f' % (weight1, weight2))
+        loc = 0
+        esprrmss = []
+        efrrmss  = []
+        add = 0
+        for idx, i in enumerate(self.molecule.nmols):
+            if i == 0:
+                add += 1
+                esprrmss.append(0)
+                efrrmss.append(0)
+            else:
+                config = 1
+                for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                    Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
+                    apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                    print()
+                    print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
+                    print()
+                    row_format = "{:>10}" * (5)
+                    firstrow = ['no.','atomname','resname','atomid','q(opt)']
+                    print(row_format.format(*firstrow))
+                    for index, q in enumerate(qpots[idx]):
+                        resname = self.molecule.resnames[idx][index]
+                        atomname = self.molecule.atomnames[idx][index]
+                        atomid = self.molecule.atomids[idx][index]
+                        print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
+                    print()
+                    print('MM dipole from model4: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
+                    print()
+                    esprrms = self.espRRMS(apot, bpot, qpots[idx], espval)
+                    efrrms  = self.efRRMS(Aef, Bef, qpots[idx], efval)
+                    esprrmss.append(esprrms)
+                    efrrmss.append(efrrms)
+                    print(' espRRMS : ', "%.4f" % esprrms)
+                    print(' efRRMS  : ', "%.4f" % efrrms)
                     if writeMol2 is True:
                         if self.inp.cheminformatics == 'openeye':
                             molt = 'oemol'
@@ -1092,4 +1286,223 @@ class Respyte_Optimizer:
                         self.write_output(self.molecule.mols[loc+config-1+ add], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
                     config += 1
             loc += i
-        return 0
+        return qpots, esprrmss, efrrmss
+
+    def Model6Amatrix(self, apotInp, weight, tightness, qpotInp, listofelem,  listofburied):
+        """
+        Builds Model 4 A matrix from A0. No restraint on hydrogen atoms.
+
+        Parameters
+        ----------
+
+        apotInp : np.ndarray
+            "A" matrix; 2D array with dimension (# of atoms)
+        weight1 : float
+            a1, scaled factor(for buried atoms) which defines the asymptotic limits of the strength of the restraint.
+        weight2 : float
+            a2, scaled factor(for exposed atoms) which defines the asymptotic limits of the strength of the restraint.
+        tightness : float
+            b, tightness of the hyperbola around its minimum.
+        qpotInp : list
+            'q' vector
+        listofelem : list
+            list of elements whose charges are being fitted
+
+        Returns
+        -------
+        np.ndarray
+            Model 6 A matrix
+        """
+        newapot = copy.deepcopy(np.array(apotInp))
+        N =  len(newapot)
+        if N != len(listofelem):
+            print('List of elements should have the same size with A0 matrix.')
+            return False
+        
+        list_of_weights = []
+        for i in range(N):
+            if i in listofburied:
+                list_of_weights.append(weight)
+            else:
+                list_of_weights.append(weight/10)
+        for i in range(N):
+            if listofelem[i] == 'H' or listofelem[i] == 1:
+                continue
+            else:
+                newapot[i][i] += list_of_weights[i]/ np.sqrt(qpotInp[i]**2 + tightness**2)
+        return newapot, list_of_weights
+
+    def Model6qpotFn(self, nAtoms, apot_comb, bpot_comb, weight, tightness, elem_comb, atomid_comb,
+                     atomidinfo, chargeinfo_comb, set_charge, equivGroupInp,  listofburied_comb):
+
+        def Model6Iteration(qpot_temp):
+            newapot, list_of_weights = self.Model6Amatrix(apot_comb, weight, tightness, qpot_temp, elem_comb,   listofburied_comb)
+            apot_constrained, bpot_constrained = self.LagrangeChargeConstraint(newapot, bpot_comb, chargeinfo_comb)
+            # Force symmetry based on the atomid
+            apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym = self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, list_of_weights, equivGroupInp)
+            # consider set_charge
+            qpot_sym= self.apply_set_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, set_charge, weights_sym, tightness)
+            indices_sym = self.getCondensedIndices(len(apot_comb), equivGroupInp)
+            qpot_expanded = self.Expandqpot(qpot_sym, indices_sym)
+            return qpot_expanded, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym
+
+        Size = len(apot_comb)
+        qpotInitial = np.zeros((Size))
+        for i in range(50):
+            qpotNext, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym = Model6Iteration(qpotInitial)
+            if np.linalg.norm(qpotNext-qpotInitial) < 1e-8: break
+            qpotInitial = qpotNext.copy()
+
+        #calculate condition number after fitting
+        Options = {'weights':list_of_weights, 'tightness': tightness}
+        cond1 = self.Ncond( apot_comb, elem_comb, qpotNext, Options)
+        cond2 = self.Ncond( apot_sym, elem_sym, qpot_sym, Options)
+        print('###############################################################')
+        print('  After expansion:', cond1)
+        print('  Before expansion:', cond2)
+        print('###############################################################')
+        # split qpot_Expanded into qpots for each molecule
+        qpots = self.cut_qpot_comb(qpotNext, nAtoms)
+        return qpots
+
+    def Model6qpot(self, weight, tightness):
+        apots, bpots, atomid_comb, elem_comb, apot_comb, bpot_comb = self.combineMatrices()
+        nAtoms = self.get_nAtoms(self.molecule.elems)
+        equivGroup = self.get_equivGroup(atomid_comb)
+
+        listofburied_comb = []
+        loc = 0
+        for idx, elems in enumerate(self.molecule.elems):
+            if len(elems) == 0:
+                continue
+            else:
+                for atmidx in self.molecule.listofburieds[idx]:
+                    listofburied_comb.append(atmidx+loc)
+                loc += len(elems)
+
+        newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
+        qpots = self.Model6qpotFn(nAtoms, apot_comb, bpot_comb, weight, tightness,
+                                  elem_comb, atomid_comb, self.molecule.atomidinfo,
+                                  newlistofchargeinfo, self.inp.set_charge, equivGroup, listofburied_comb)
+
+
+        # write mol2 files with fitted charges.
+        writeMol2 = False
+        path = os.getcwd()
+        if os.path.isdir('%s/resp_output' % path):
+            print(' resp_output dir already exists!!! will overwrite anyway:/')
+            writeMol2 = True
+        else:
+            writeMol2 = True
+            os.mkdir('%s/resp_output' % path)
+        # write text file for collecting result:)
+        with open('%s/resp_output/result.txt' % path,'w') as f:
+            f.write('respyte result\n')
+            f.write(' Model 6')
+            if self.inp.restraintinfo['matrices'] == ['esp', 'ef']:
+                f.write(' RESPF\n')
+            elif self.inp.restraintinfo['matrices'] == ['esp']:
+                f.write(' RESP\n')
+            elif self.inp.restraintinfo['matrices'] == ['ef']:
+                f.write(' REF\n')
+            f.write(' weight = %8.4f, tightness = %8.4f\n' % (weight, tightness))
+            for idx, qpot in enumerate(qpots):
+                f.write('mol%d\n' % (idx+1))
+                for charge in qpot:
+                    f.write('%8.4f\n' % round(charge,4))
+        print()
+        print('-------------------------------------------------------')
+        print()
+        print('              Model 6 with a = %.4f' % (weight))
+        loc = 0
+        esprrmss = []
+        efrrmss  = []
+        add = 0
+        for idx, i in enumerate(self.molecule.nmols):
+            if i == 0:
+                add += 1
+                esprrmss.append(0)
+                efrrmss.append(0)
+            else:
+                config = 1
+                for xyz,gridxyz, espval, efval  in zip(self.molecule.xyzs[loc: loc+i], self.molecule.gridxyzs[loc: loc+i], self.molecule.espvals[loc: loc+i], self.molecule.efvals[loc: loc+i]):
+                    Aef, Bef = self.EfDesignMatrix(xyz, gridxyz, efval)
+                    apot, bpot = self.EspDesignMatrix(xyz, gridxyz, espval)
+                    print()
+                    print('           -=#=-  Molecule %d config. %d -=#=-' % (idx+1, config))
+                    print()
+                    row_format = "{:>10}" * (5)
+                    firstrow = ['no.','atomname','resname','atomid','q(opt)']
+                    print(row_format.format(*firstrow))
+                    for index, q in enumerate(qpots[idx]):
+                        resname = self.molecule.resnames[idx][index]
+                        atomname = self.molecule.atomnames[idx][index]
+                        atomid = self.molecule.atomids[idx][index]
+                        print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
+                    print()
+                    print('MM dipole from model6: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
+                    print()
+                    esprrms = self.espRRMS(apot, bpot, qpots[idx], espval)
+                    efrrms  = self.efRRMS(Aef, Bef, qpots[idx], efval)
+                    esprrmss.append(esprrms)
+                    efrrmss.append(efrrms)
+                    print(' espRRMS : ', "%.4f" % esprrms)
+                    print(' efRRMS  : ', "%.4f" % efrrms)
+                    if writeMol2 is True:
+                        if self.inp.cheminformatics == 'openeye':
+                            molt = 'oemol'
+                        elif self.inp.cheminformatics == 'rdkit':
+                            molt = 'rdmol'
+                        else:
+                            molt = 'fbmol'
+                        self.write_output(self.molecule.mols[loc+config-1+ add], qpots[idx], moltype = molt,                                                                                            outfile = '%s/resp_output/mol%d_conf%d.mol2'% (path, idx+1, config))
+                    config += 1
+            loc += i
+        return qpots, esprrmss, efrrmss
+
+    def EspResiduals(self, qpotsInp):
+        list_of_residuals = []
+        if len(molecule.xyzs) == len(qpotsInp):
+            qpots = qpotsInp
+        else:
+            qpots = []
+            for idxx, Nconf in enumerate(molecule.nmols):
+                for k in range(Nconf):
+                    qpots.append(qpotsInp[idxx])
+            if len(molecule.xyzs) != len(qpots):
+                raise RuntimeError('sth wrong!!')
+        for idx, xyzs in enumerate(self.molecule.xyzs):
+            molbohr = xyzs
+            gridxyzs = self.molecule.gridxyzs[idx]
+            espval = self.molecule.espvals[idx]
+
+            x = np.array([xyz[0] for xyz in molbohr])
+            y = np.array([xyz[1] for xyz in molbohr])
+            z = np.array([xyz[2] for xyz in molbohr])
+            potv = np.array(espval)
+            potvsq = potv*potv
+            ssvpot = np.sum(potvsq)
+            sspotsorted = np.sum(np.sort(potvsq))
+            invRij = []
+            dxij = []
+            dyij = []
+            dzij = []
+            for pt in range(len(gridxyzs)):
+                i = pt
+                dxj = x - gridxyzs[i,0]
+                dxij.append(dxj)
+                dyj = y - gridxyzs[i,1]
+                dyij.append(dyj)
+                dzj = z - gridxyzs[i,2]
+                dzij.append(dzj)
+                rijsq = dxj*dxj + dyj*dyj + dzj*dzj
+                invRjSq = 1.0/rijsq
+                invRij.append(np.sqrt(invRjSq))
+
+            vi = np.zeros(len(gridxyzs))
+            for j, invRj in enumerate(invRij):
+                vj = qpots[idx]*invRj
+                vi[j] = np.sum(np.sort(vj))
+            residual = vi - espval
+            list_of_residuals.append(residual)
+        return list_of_residuals

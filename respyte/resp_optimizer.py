@@ -1,15 +1,10 @@
-
 from respyte.molecule import *
 from respyte.readinp_resp import Input
 from respyte.molecule_resp import *
 from respyte.select_grid import *
-
 from respyte.resp_unit import *
 
-
 def main():
-
-    # cwd = current working directory in which input folder exists
     cwd = os.getcwd()
     # check if the current working idr contains input folder
     print('\n')
@@ -17,7 +12,7 @@ def main():
     print(' 1. Reading  input files and folders.                    ')
     print('---------------------------------------------------------')
     if os.path.isdir("%s/input" % cwd):
-        print(' Found the input folder. Now read input/input.yml')
+        print(' Found the input folder. Now read input/respyte.yml')
     else:
         print(' Failed to find input folder. Should have input(folder) containing input.yml and molecules(folder)')
     # read respyte.yml
@@ -31,6 +26,7 @@ def main():
     else:
         print(' Not using Cheminformatics?')
         molecule = Molecule_respyte()
+
     molecule.addInp(inp)
 
     for idx, i in enumerate(inp.nmols):
@@ -77,20 +73,16 @@ def main():
                         if (len(numbers)==4):
                             xyz = [x for x in numbers[0:3]]
                             pts.append(xyz)
-                selectedPts = SelectGridPts(tmpmol,inner,outer,pts, radii )
-                print(' Read %d pts from %s_%s.espf' % (len(pts), molN, confN))
-                print(' select pts: inner =%0.4f, outer = %0.4f' %(inner, outer))
-                print(' Use %d pts out of %d pts' %(len(selectedPts), len(pts)))
+                selectedPtsIdx, selectedPts = SelectGridPts(tmpmol,inner,outer,pts, radii )
             else:
-                selectedPts = None
-            listofselectedPts.append(selectedPts)
+                selectedPtsIdx = None
+            listofselectedPts.append(selectedPtsIdx)
         molecule.addCoordFiles(*coordfilepath)
         molecule.addEspf(*espffilepath, selectedPts = listofselectedPts)
     print('---------------------------------------------------------')
     print(' 2. Charge fitting to QM data                            ')
     print('---------------------------------------------------------')
     os.chdir(cwd)
-    print(' resp calculation is running on %s' % cwd)
     cal = Respyte_Optimizer()
     cal.addInp(inp)
     cal.addMolecule(molecule)
@@ -102,19 +94,29 @@ def main():
             aval = inp.restraintinfo['a']
             bval = inp.restraintinfo['b']
             cal.Model3qpot(aval, bval)
+        elif inp.restraintinfo['penalty'] == 'model4':
+            a1val = inp.restraintinfo['a1']
+            a2val = inp.restraintinfo['a2']
+            bval = inp.restraintinfo['b']
+            cal.Model4qpot(a1val, a2val, bval)
+        elif inp.restraintinfo['penalty'] == 'model5':
+            a1val = inp.restraintinfo['a1']
+            a2val = inp.restraintinfo['a2']
+            bval = inp.restraintinfo['b']
+            cal.Model5qpot(a1val, a2val, bval)
+        elif inp.restraintinfo['penalty'] == 'model6':
+            aval = inp.restraintinfo['a']
+            bval = inp.restraintinfo['b']
+            cal.Model6qpot(aval, bval)
         elif inp.restraintinfo['penalty'] == '2-stg-fit':
             a1val = inp.restraintinfo['a1']
             a2val = inp.restraintinfo['a2']
             bval = inp.restraintinfo['b']
-            cal.twoStageFit(a1val, a2val,bval)
-
-    # print()
-    # print('    #####################################################')
-    # print('    ###               Test calculations               ###')
-    # print('    #####################################################')
-    # cal.Model2qpot(0.005)
-    # cal.Model3qpot(0.0005,0.1)
-    # cal.twoStageFit(0.0005,0.001,0.1)
+            cal.twoStageFit(a1val, a2val, bval)
+        elif inp.restraintinfo['penalty'] == '2-stg-fit(6)':
+            aval = inp.restraintinfo['a']
+            bval = inp.restraintinfo['b']
+            cal.twoStageFit_Model6(aval, bval)
 
 if __name__ == '__main__':
     main()

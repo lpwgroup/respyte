@@ -143,10 +143,10 @@ def main():
             # copy espf file generated in moli/confj/tmp to moli/confj/
             copyfile(espfoutput, path + '/%s_%s.espf' % (molN, confN))
             copyfile(griddat, path + '/grid.dat')
-            print('\n')
-            print('---------------------------------------------------------')
-            print('       Done! Hope it helps, Will see you again:)         ')
-            print('---------------------------------------------------------')
+    print('\n')
+    print('---------------------------------------------------------')
+    print('       Done! Hope it helps, Will see you again:)         ')
+    print('---------------------------------------------------------')
 
 if __name__ == "__main__":
     main()

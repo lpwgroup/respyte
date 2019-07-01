@@ -37,6 +37,7 @@ class Molecule_respyte:
         self.resnumbers = []
         #self.equivGroups = [] # maybe don't need this
         self.listofpolars = []
+        self.listofburieds = []
         self.listofchargeinfo = []
 
         self.gridxyzs = []
@@ -89,7 +90,10 @@ class Molecule_respyte:
     def addInp(self, inpcls):
         assert isinstance(inpcls, Input)
         self.inp = inpcls
-
+    def changesymmetry(self, symmetry=False):
+        print(self.inp.symmetry)
+        self.inp.symmetry = symmetry
+        print('After:',self.inp.symmetry)
     def removeSingleElemList(self, lst):
         needtoremove = []
         for idx, i in enumerate(lst):
@@ -298,6 +302,8 @@ class Molecule_respyte:
             # For now, when cheminformatics is not used, ignore polar atoms
             listofpolar = []
             self.listofpolars.append(listofpolar)
+            listofburied = []
+            self.listofburieds.append(listofburied)
 
     def addEspf(self, *espfFiles, selectedPts):
         for idx, espfFile in enumerate(espfFiles):
@@ -362,6 +368,7 @@ class Molecule_OEMol(Molecule_respyte):
             self.atomnames.append([])
             self.resnumbers.append([])
             self.listofpolars.append([])
+            self.listofburieds.append([])
             xyzs = []
             self.nmols.append(len(xyzs))
             indices = []
@@ -438,11 +445,15 @@ class Molecule_OEMol(Molecule_respyte):
                     # Using openeye tool, make listofpolar,
                     symmetryClass = []
                     listofpolar = []
+                    listofburied = []
                     oechem.OEAssignHybridization(oemol)
                     for atom in oemol.GetAtoms():
                         symmetryClass.append(atom.GetSymmetryClass())
                         if atom.IsCarbon() and int(atom.GetHyb()) != 3:
+
                             listofpolar.append(atom.GetIdx())
+                        if len([bond for bond in atom.GetBonds()]) >3:
+                            listofburied.append(atom.GetIdx())
                             # ispolar = False
                             # for bond in atom.GetBonds():
                             #     atom2 = bond.GetNbr(atom)
@@ -461,16 +472,13 @@ class Molecule_OEMol(Molecule_respyte):
                                     listofpolar.append(atom.GetIdx())
                                 elif atom2.IsCarbon() and atom2.GetIdx() in listofpolar:
                                     listofpolar.append(atom.GetIdx())
+                                if atom2.GetIdx() in listofburied:
+                                    listofburied.append(atom.GetIdx()) # store hydrogens bonded to buried atoms
                         if atom.IsPolar():
                             listofpolar.append(atom.GetIdx())
 
-                            # for atom2 in oemol.GetAtoms():
-                            #     if atom2.IsHydrogen() and atom2.IsConnected(atom) is True:
-                            #         listofpolar.append(atom2.GetIdx())
-                            #     elif atom2.IsCarbon() and atom2.IsConnected(atom) and oechem.OEGetHybridization(atom2) < 3:
-                            #         listofpolar.append(atom2.GetIdx())
-
                     listofpolar = sorted(set(listofpolar))
+                    listofburied = sorted(set(listofburied))
                     idxof1statm, resnameof1statm = self.getidxof1statm(resnumber, resname)
                     unique_resid = set(resnameof1statm)
                     sameresid = [[i for i, v in enumerate(resnameof1statm) if v == value] for value in unique_resid]
@@ -527,13 +535,27 @@ class Molecule_OEMol(Molecule_respyte):
                             for j in self.atomidinfo[i]:
                                 newatomidinfo[newid].append(j)
                             del newatomidinfo[i]
-                    self.atomids.append(newatomid)
-                    self.atomidinfo = newatomidinfo
+                    # print('newatomidinfo', newatomidinfo)
+                    # print('oldatomidinfo', self.atomidinfo)
+                    # print('newatomid', newatomid)
+                    # print('oldatomid', atomid)
+                    if self.inp is not None:
+                        print(self.inp.symmetry)
+                        if self.inp.symmetry == False:
+                            self.atomids.append(atomid)
+                            self.atomidinfo = self.atomidinfo
+                        else:
+                            self.atomids.append(newatomid)
+                            self.atomidinfo = newatomidinfo
+                    else:
+                        self.atomids.append(newatomid)
+                        self.atomidinfo = newatomidinfo
                     self.elems.append(atomicNum)
                     self.resnames.append(resname)
                     self.atomnames.append(atomname)
                     self.resnumbers.append(resnumber)
                     self.listofpolars.append(listofpolar)
+                    self.listofburieds.append(listofburied)
 
                     if self.inp is not None:
                         chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
@@ -710,8 +732,16 @@ class Molecule_RDMol(Molecule_respyte):
                             for j in self.atomidinfo[i]:
                                 newatomidinfo[newid].append(j)
                             del newatomidinfo[i]
-                    self.atomids.append(newatomid)
-                    self.atomidinfo = newatomidinfo
+                    if self.inp is not None:
+                        if self.inp.symmetry == False:
+                            self.atomids.append(atomid)
+                            self.atomidinfo = self.atomidinfo
+                        else:
+                            self.atomids.append(newatomid)
+                            self.atomidinfo = newatomidinfo
+                    else:
+                        self.atomids.append(newatomid)
+                        self.atomidinfo = newatomidinfo
                     self.elems.append(atomicNum)
                     self.resnames.append(resname)
                     self.atomnames.append(atomname)
@@ -788,8 +818,8 @@ def main():
         # print('atom ids:    ', molecule.atomids,'\n')
         # #print('resnames:    ',molecule.resnames,'\n')
         # print('polar atoms: ', molecule.listofpolars[-1],'\n')
-        #print('charge info: ',molecule.listofchargeinfo[-1],'\n')
-        #print('atomidinfo', molecule.atomidinfo)
+        # #print('charge info: ',molecule.listofchargeinfo[-1],'\n')
+        # #print('atomidinfo', molecule.atomidinfo)
         #print('-----------------------------------------------------------------------------------------')
     # print(molecule.nmols, len(molecule.nmols))
     # print(len(molecule.elems), len(molecule.atomids), len(molecule.resnames), len(molecule.listofpolars), len(molecule.xyzs))
