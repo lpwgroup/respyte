@@ -55,12 +55,14 @@ import string, sys
 import copy  ### PC
 import numpy as np
 
-try:
-    import forcebalance
-    from forcebalance.output import *
-    logger = getLogger(__name__)
-except:
-    import logging as logger
+# try:
+#     import forcebalance
+#     from forcebalance.output import *
+#     logger = getLogger(__name__)
+# except:
+#     import logging as logger
+
+import logging as logger
 
 class END(object):
     """ END class
