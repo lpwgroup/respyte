@@ -333,16 +333,6 @@ class Molecule_respyte:
                         else:
                             print('Error ReadEspfFile: encountered line not having 3 or 4 numbers')
                             return False
-            # # read space
-            # space = 10.0
-            # for i in gridxyz:
-            #     for j in gridxyz[i:]:
-            #         dr = np.array(j) - np.array(i)
-            #     r = np.sqrt(np.dot(dr, dr))
-            #     if r == 0:
-            #         pass
-            #     elif r < space:
-            #         space = r
 
             if self.prnlev >= 1:
                 print()
@@ -584,6 +574,7 @@ class Molecule_RDMol(Molecule_respyte):
             self.atomnames.append([])
             self.resnumbers.append([])
             self.listofpolars.append([])
+            self.listofburieds.append([])
             xyzs = []
             self.nmols.append(len(xyzs))
             indices = []
@@ -664,16 +655,33 @@ class Molecule_RDMol(Molecule_respyte):
                         symmetryClass.append(int(atom.GetProp('_CIPRank')))
                     # Get a list of polar atoms from rdkit
                     listofpolar  = []
+                    listofburied = []
                     for atom in rdmol.GetAtoms():
-                        if (atom.GetSymbol() != 'C' and atom.GetSymbol() !='H') or atom.GetIsAromatic():
+                        if atom.GetSymbol() == 'C' and str(atom.GetHybridization()) != 'SP3':
                             listofpolar.append(atom.GetIdx())
+                        if len([bond for bond in atom.GetBonds()]) >3:
+                            listofburied.append(atom.GetIdx())
+                    for atom in rdmol.GetAtoms():
+                        if atom.GetSymbol() == 'H':
                             for bond in atom.GetBonds():
                                 atom2 = bond.GetOtherAtom(atom)
-                                if atom2.GetSymbol() == 'H':
-                                    listofpolar.append(atom2.GetIdx())
-                                elif atom2.GetSymbol() == 'C' and str(bond.GetBondType()) != 'SINGLE':
-                                    listofpolar.append(atom2.GetIdx())
-                    listofpolar = sorted(set(listofpolar))
+                                if (atom2.GetSymbol() != 'C' and atom2.GetSymbol() !='H'):
+                                    listofpolar.append(atom.GetIdx())
+                                elif atom2.GetSymbol() == 'C' and atom2.GetIdx() in listofpolar:
+                                    listofpolar.append(atom.GetIdx())
+                                if atom2.GetIdx() in listofburied:
+                                    listofburied.append(atom.GetIdx())
+                        if (atom.GetSymbol() != 'C' and atom.GetSymbol() !='H'):
+                            listofpolar.append(atom.GetIdx())
+                    #     if (atom.GetSymbol() != 'C' and atom.GetSymbol() !='H') or atom.GetIsAromatic():
+                    #         listofpolar.append(atom.GetIdx())
+                    #         for bond in atom.GetBonds():
+                    #             atom2 = bond.GetOtherAtom(atom)
+                    #             if atom2.GetSymbol() == 'H':
+                    #                 listofpolar.append(atom2.GetIdx())
+                    #             elif atom2.GetSymbol() == 'C' and str(bond.GetBondType()) != 'SINGLE':
+                    #                 listofpolar.append(atom2.GetIdx())
+                    # listofpolar = sorted(set(listofpolar))
                 ##########################################################################
                 ### Below is the same with addCoordFiles in Molecule_OEMol             ###
                     idxof1statm, resnameof1statm = self.getidxof1statm(resnumber, resname)
@@ -747,6 +755,7 @@ class Molecule_RDMol(Molecule_respyte):
                     self.atomnames.append(atomname)
                     self.resnumbers.append(resnumber)
                     self.listofpolars.append(listofpolar)
+                    self.listofburieds.append(listofburied)
 
                     if self.inp is not None:
                         chargeinfo = self.gen_chargeinfo(self.inp.resChargeDict, newatomid, self.atomidinfo, resnumber)
@@ -764,67 +773,3 @@ class Molecule_RDMol(Molecule_respyte):
                 self.mols.append(rdmol)
                 ### Above is the same with addCoordFiles in Molecule_OEMol             ###
                 ##########################################################################
-
-
-def main():
-    # cwd = current working directory in which input folder exists
-    cwd = os.getcwd()
-    # read respyte.yml
-    inp = Input('%s/input/respyte.yml' % (cwd))
-    # Create molecule object
-    if inp.cheminformatics == 'openeye':
-        molecule = Molecule_OEMol()
-    elif inp.cheminformatics == 'rdkit':
-        molecule = Molecule_RDMol()
-    else:
-        molecule = Molecule_respyte()
-    molecule.addInp(inp)
-
-    for idx, i in enumerate(inp.nmols):
-        molN = 'mol%d' % (idx+1)
-        wkd = '%s/input/molecules/%s' % (cwd, molN)
-        coordfilepath = []
-        espffilepath = []
-        for j in range(i):
-            confN = 'conf%d' % (j+1)
-            path = wkd + '/%s' % (confN)
-            pdbfile = path + '/%s_%s.pdb' % (molN, confN)
-            mol2file = path + '/%s_%s.mol2' % (molN, confN)
-            xyzfile = path + '/%s_%s.xyz' % (molN, confN)
-            if os.path.isfile(pdbfile):
-                coordpath = pdbfile
-                coordfilepath.append(coordpath)
-            elif os.path.isfile(mol2file):
-                coordpath = mol2file
-                coordfilepath.append(coordpath)
-            elif os.path.isfile(xyzfile):
-                coordpath = xyzfile
-                coordfilepath.append(coordpath)
-                print('This folder doesn not contain pdb or mol2 file format. ')
-            else:
-                raise RuntimeError(" Coordinate file should have pdb or mol2 file format! ")
-
-            espfpath = path + '/%s_%s.espf' %(molN, confN)
-            if not os.path.isfile(espfpath):
-                raise RuntimeError('%s file doesnt exist!!! '% espfpath)
-            else:
-                espffilepath.append(espfpath)
-
-        molecule.addCoordFiles(*coordfilepath)
-        # print('-----------------------------------------------------------------------------------------')
-        # print('             ##   Check molecule information of %s  ' % molN )
-        # print('-----------------------------------------------------------------------------------------')
-        # #print('elems:       ', molecule.elems,'\n')
-        # print('atom ids:    ', molecule.atomids,'\n')
-        # #print('resnames:    ',molecule.resnames,'\n')
-        # print('polar atoms: ', molecule.listofpolars[-1],'\n')
-        # #print('charge info: ',molecule.listofchargeinfo[-1],'\n')
-        # #print('atomidinfo', molecule.atomidinfo)
-        #print('-----------------------------------------------------------------------------------------')
-    # print(molecule.nmols, len(molecule.nmols))
-    # print(len(molecule.elems), len(molecule.atomids), len(molecule.resnames), len(molecule.listofpolars), len(molecule.xyzs))
-    for idx, i in enumerate(molecule.nmols):
-        print('molecule %i' %(idx+1))
-        print(molecule.listofpolars[idx])
-if __name__ == '__main__':
-    main()
