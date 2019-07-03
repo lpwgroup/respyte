@@ -273,7 +273,7 @@ except ImportError:
 #| Mol2 read/write functions |#
 #=============================#
 try:
-    import respyte.Mol2
+    import respyte.Mol2 as Mol2
 except ImportError:
     warn('The Mol2 module cannot be imported (Cannot read/write Mol2 files)')
 
