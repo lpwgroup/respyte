@@ -35,10 +35,12 @@ setup(
     # Extend/modify the list to include/exclude other items as need be
     package_data={'respyte': ["data/*.dat"]
                   },
-
+    entry_points={'console_scripts': [
+        'respyte-optimizer = respyte.resp_optimizer:main',
+        'respyte-esp_generator = respyte.esp_generator:main']},
     # Additional entries you may want simply uncomment the lines you want and fill in the data
     # author_email='me@place.org',      # Author email
-    # url='http://www.my_package.com',  # Website
+    url='https://github.com/lpwgroup/respyte'
     # install_requires=[],              # Required packages, pulls from pip if needed; do not use for Conda deployment
     # platforms=['Linux',
     #            'Mac OS-X',

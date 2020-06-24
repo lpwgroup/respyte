@@ -4,7 +4,7 @@ respyte
 [![Build Status](https://travis-ci.org/lpwgroup/respyte.svg?branch=master)](https://travis-ci.org/lpwgroup/respyte)
 [![Codecov coverage](https://img.shields.io/codecov/c/github/lpwgroup/respyte.svg?logo=Codecov&logoColor=white)](https://codecov.io/gh/lpwgroup/respyte) 
 
-implementation of open-source version of RESP method
+Implementation of open-source version of RESP method
 
 ## Installation
 From a clean Miniconda installation, run the following:
@@ -23,13 +23,15 @@ conda install -c omnia forcebalance
 Before running 'esp_generator.py', Please navigate 'data' folder which contains sample input folder. This will give you 
 some idea about what kind of data structure 'esp_generator.py' and 'resp_optimizer.py' can handle. 
 
-First, to calculate electrostatic potential (and electric field) using Psi4, create input folder with appropriate data structure and run this command inside the directory where your 'input' exists:
+First, to calculate electrostatic potential (and electric field) using Psi4, create input folder with appropriate data structure and run this command inside the directory where your `input/` folder exists:
 
-`python esp_generator.py`
+```
+respyte-esp_generator
+```
 
-If the calculation is successfully done, you can find files with .espf extension in each subfolder,'input/molecules/mol(i)/conf(j)'. This stores all the grid point informations with specific file format for 'resp_optimizer.py'. Then you are ready to go to the next step. Write respyte.yml inside 'input/' and run this command:
+If the calculation is successfully done, you can find files with .espf extension in each subfolder,'input/molecules/mol(i)/conf(j)'. This stores all the grid point informations with specific file format for 'resp_optimizer.py'. Then you are ready to go to the next step. Write respyte.yml inside `input/` and run this command where your `input/` folder exists:
 
-`python resp_optimizer.py`
+`respyte-optimizer`
 
 
 #### Copyright
