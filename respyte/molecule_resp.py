@@ -110,38 +110,38 @@ class Molecule_respyte:
         self.listofpolars.append(listofpolar)
 
 
-    def convert_charge_equal(self, charge_equal, atomidinfo):
+    def convert_equiv_atoms(self, equiv_atoms, atomidinfo):
         """
-        Convert charge_equal which assigns equivalent set of atoms into list of equivalent atom ID.
+        Convert equiv_atoms which assigns equivalent set of atoms into list of equivalent atom ID.
 
         """
-        new_charge_equals = []
-        for atmnms, resnms in charge_equal:
+        list_of_new_equiv_atoms = []
+        for atmnms, resnms in equiv_atoms:
             # Case 1, when single or multiple atomnames are set to be equal in any residues.
             if resnms is '*':
-                new_charge_equal = [] # store atom ids set to be equivalent.
+                new_equiv_atoms = [] # store atom ids set to be equivalent.
                 for atmnm in atmnms:
                     for atmid, info in self.atomidinfo.items():
 
                         if any(x['atomname'] == atmnm for x in info):
-                            new_charge_equal.append(atmid)
+                            new_equiv_atoms.append(atmid)
 
             # Case 2, when single or multiple atomnames in specific residues are set to be equivalent.
             elif len(atmnms) > 1 or len(resnms) > 1:
-                new_charge_equal = []
+                new_equiv_atoms = []
                 for i in atmnms:
                     for j in resnms:
                         val = {'resname' : j, 'atomname' : i}
                         for atmid, info in self.atomidinfo.items():
                             if val in info:
-                                new_charge_equal.append(atmid)
+                                new_equiv_atoms.append(atmid)
             else:
                 pass
-            new_charge_equal = list(set(new_charge_equal))
-            new_charge_equals.append(new_charge_equal)
-        new_charge_equals = self.removeSingleElemList(new_charge_equals)
-        new_charge_equals.sort()
-        return new_charge_equals
+            new_equiv_atoms = list(set(new_equiv_atoms))
+            list_of_new_equiv_atoms.append(new_equiv_atoms)
+        list_of_new_equiv_atoms = self.removeSingleElemList(list_of_new_equiv_atoms)
+        list_of_new_equiv_atoms.sort()
+        return list_of_new_equiv_atoms
 
     def gen_chargeinfo(self, resChargeDict, atomid, atomidinfo, resnumber):
         """
@@ -191,6 +191,8 @@ class Molecule_respyte:
         return idxof1statm, resnameof1statm
 
     def addCoordFiles(self, *coordFiles):
+        # print(f'\n\033[1m Read Coordinate files... \033[0m')
+
         if len(coordFiles) == 0:
             print('No conformer is given? ')
             self.mols.append(Molecule())
@@ -223,7 +225,7 @@ class Molecule_respyte:
                     atomicNum = []
                     elem = fbmol.elem
                     if 'resid' not in list(fbmol.Data.keys()):
-                        print(' Are you using xyz file? will assing resid, resname,atomname for you!')
+                        print(' - Are you using xyz file? Default resid, resname, atomname will be assigned.')
                         resnumber = [1 for i in elem]
                         resname = list('MOL' for i in elem)
                         atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem) ]
@@ -242,8 +244,8 @@ class Molecule_respyte:
                     if resname == list('MOL' for i in elem):
                         fnm = Path(coordFile).stem
                         newresname = fnm.split('_')[0]
-                        print(' Is this coord file generated from esp_generator? The residue name is MOL.\n')
-                        print(' It reassigns the residue name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
+                        print(' - Is this file generated from esp_generator? The residue name is MOL, which is a default residue name for small organic molecule.')
+                        print('   It reassigns the residue name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
                         resname = list(newresname for i in elem)
                         num = 1
                         for res, atom in zip(resname, elem):
@@ -268,7 +270,7 @@ class Molecule_respyte:
                                 self.atomidinfo[atmid] = [val]
                                 atmid += 1
                     if self.inp is not None:
-                        equiv_ids = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                        equiv_ids = self.convert_equiv_atoms(self.inp.equiv_atoms, self.atomidinfo)
                     else:
                         equiv_ids = []
                     # And modify atomid and atomidinfo so that equivalent atoms can have the same id.
@@ -306,6 +308,7 @@ class Molecule_respyte:
             self.listofburieds.append(listofburied)
 
     def addEspf(self, *espfFiles, selectedPts):
+        # print(f'\n\033[1m Read ESPF files... \033[0m')
         for idx, espfFile in enumerate(espfFiles):
             espval = []
             gridxyz = []
@@ -349,6 +352,7 @@ class Molecule_respyte:
 
 class Molecule_OEMol(Molecule_respyte):
     def addCoordFiles(self, *coordFiles):
+        # print(f'\n\033[1m Read Coordinate files... \033[0m')
         if len(coordFiles) == 0:
             print('Skip this molecule? Empty molecule object will be created since no conformers is provided.')
             self.mols.append(oechem.OEMol())
@@ -388,7 +392,7 @@ class Molecule_OEMol(Molecule_respyte):
                     atomicNum = []
                     elem = fbmol.elem
                     if 'resid' not in list(fbmol.Data.keys()):
-                        print(' Are you using xyz file? will assing resid, resname,atomname for you!')
+                        print(' - Are you using xyz file? Default resid, resname, atomname will be assigned.')
                         resnumber = [1 for i in elem]
                         resname = list('MOL' for i in elem)
                         atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem)]
@@ -407,8 +411,8 @@ class Molecule_OEMol(Molecule_respyte):
                     if resname == list('MOL' for i in elem):
                         fnm = Path(coordFile).stem
                         newresname = fnm.split('_')[0]
-                        print(' Is this file generated from esp_generator? The residue name is MOL, which is a default residue name for small organic molecule.')
-                        print(' It reassigns the name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
+                        print(' - Is this file generated from esp_generator? The residue name is MOL, which is a default residue name for small organic molecule.')
+                        print('   It reassigns the residue name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
                         resname = list(newresname for i in elem)
                         num = 1
                         for res, atom in zip(resname, elem):
@@ -504,13 +508,13 @@ class Molecule_OEMol(Molecule_respyte):
                     for i in needtoremove:
                         del equiv_ids[i]
                     if self.inp is not None:
-                        new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                        list_of_new_equiv_atoms = self.convert_equiv_atoms(self.inp.equiv_atoms, self.atomidinfo)
                     else:
-                        new_charge_equals = []
+                        list_of_new_equiv_atoms = []
                     equiv_ids_comb = []
                     for i in equiv_ids:
                         equiv_ids_comb.append(i)
-                    for i in new_charge_equals:
+                    for i in list_of_new_equiv_atoms:
                         equiv_ids_comb.append(i)
                     for i in equiv_ids_comb:
                         i.sort()
@@ -530,7 +534,7 @@ class Molecule_OEMol(Molecule_respyte):
                     # print('newatomid', newatomid)
                     # print('oldatomid', atomid)
                     if self.inp is not None:
-                        print(self.inp.symmetry)
+                        # print( f' * symmetry: {self.inp.symmetry}')
                         if self.inp.symmetry == False:
                             self.atomids.append(atomid)
                             self.atomidinfo = self.atomidinfo
@@ -564,7 +568,7 @@ class Molecule_OEMol(Molecule_respyte):
 
 class Molecule_RDMol(Molecule_respyte):
     def addCoordFiles(self, *coordFiles):
-        #raise NotImplementedError('Will be implemented soon!')
+        # print(f'\n\033[1m Read Coordinate files... \033[0m')
         if len(coordFiles) == 0:
             print('Skip this molecule? Empty molecule object will be created since no conformers is provided.')
             self.mols.append(rdchem.Mol())
@@ -602,7 +606,7 @@ class Molecule_RDMol(Molecule_respyte):
                     atomicNum = []
                     elem = fbmol.elem
                     if 'resid' not in list(fbmol.Data.keys()):
-                        print(' Are you using xyz file? will assing resid, resname,atomname for you!')
+                        print(' - Are you using xyz file? Default resid, resname, atomname will be assigned.')
                         resnumber = [1 for i in elem]
                         resname = list('MOL' for i in elem)
                         atomname = ['%s%d' % (i,idx+1)for idx, i in enumerate(elem)]
@@ -621,8 +625,8 @@ class Molecule_RDMol(Molecule_respyte):
                     if resname == list('MOL' for i in elem):
                         fnm = Path(coordFile).stem
                         newresname = fnm.split('_')[0]
-                        print(' Is this file generated from esp_generator? The residue name is MOL, which is a default residue name for small organic molecule.')
-                        print(' It reassigns the name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
+                        print(' - Is this file generated from esp_generator? The residue name is MOL, which is a default residue name for small organic molecule.')
+                        print('   It reassigns the residue name to %s not to confuse with other molecules while forcing symmetry.' % newresname)
                         resname = list(newresname for i in elem)
                         num = 1
                         for res, atom in zip(resname, elem):
@@ -719,13 +723,13 @@ class Molecule_RDMol(Molecule_respyte):
                     for i in needtoremove:
                         del equiv_ids[i]
                     if self.inp is not None:
-                        new_charge_equals = self.convert_charge_equal(self.inp.charge_equal, self.atomidinfo)
+                        list_of_new_equiv_atoms = self.convert_equiv_atoms(self.inp.equiv_atoms, self.atomidinfo)
                     else:
-                        new_charge_equals = []
+                        list_of_new_equiv_atoms = []
                     equiv_ids_comb = []
                     for i in equiv_ids:
                         equiv_ids_comb.append(i)
-                    for i in new_charge_equals:
+                    for i in list_of_new_equiv_atoms:
                         equiv_ids_comb.append(i)
                     for i in equiv_ids_comb:
                         i.sort()

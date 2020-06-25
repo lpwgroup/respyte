@@ -653,20 +653,20 @@ class Respyte_Optimizer:
 
         return apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym
 
-    def apply_set_charge(self, apotInp, bpotInp, elemInp, atomidInp, atomidinfo, set_charge, weightsInp, tightness):
+    def apply_fixed_atomic_charge(self, apotInp, bpotInp, elemInp, atomidInp, atomidinfo, fixed_atomic_charge, weightsInp, tightness):
         """
-        fix charges listed in set_charge and calculate linear algebra
+        fix charges listed in fixed_atomic_charge and calculate linear algebra
 
         """
         fixedatoms = []
         setcharges = []
-        for atom in set_charge:
-            val = {'resname': set_charge[atom]['resname'], 'atomname': set_charge[atom]['atomname']}
+        for atom in fixed_atomic_charge:
+            val = {'resname': fixed_atomic_charge[atom]['resname'], 'atomname': fixed_atomic_charge[atom]['atomname']}
             for idx, atomid in enumerate(atomidInp):
                 if val in atomidinfo[atomid]:
                     if idx not in fixedatoms:
                         fixedatoms.append(idx)
-                        setcharges.append(set_charge[atom]['charge'])
+                        setcharges.append(fixed_atomic_charge[atom]['charge'])
         apot_free = copy.deepcopy(apotInp)
         bpot_free = copy.deepcopy(bpotInp)
         elem_free = copy.deepcopy(elemInp)
@@ -780,13 +780,13 @@ class Respyte_Optimizer:
 
         return newapot, list_of_weights
 
-    def Model3qpotFn(self, nAtoms, apot_comb, bpot_comb, weight, tightness, elem_comb, atomid_comb, atomidinfo, chargeinfo_comb, set_charge, equivGroupInp):
+    def Model3qpotFn(self, nAtoms, apot_comb, bpot_comb, weight, tightness, elem_comb, atomid_comb, atomidinfo, chargeinfo_comb, fixed_atomic_charge, equivGroupInp):
 
         def Model3Iteration(qpot_temp):
             newapot, list_of_weights = self.Model3Amatrix(apot_comb, weight, tightness, qpot_temp, elem_comb)
             apot_constrained, bpot_constrained = self.LagrangeChargeConstraint(newapot, bpot_comb, chargeinfo_comb)
             apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym = self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, list_of_weights, equivGroupInp)
-            qpot_sym = self.apply_set_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, set_charge, weights_sym, tightness)
+            qpot_sym = self.apply_fixed_atomic_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, fixed_atomic_charge, weights_sym, tightness)
             indices_sym = self.getCondensedIndices(len(apot_comb), equivGroupInp)
             qpot_expanded = self.Expandqpot(qpot_sym, indices_sym)
             return qpot_expanded, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym
@@ -802,10 +802,10 @@ class Respyte_Optimizer:
         Options = {'weights':list_of_weights, 'tightness': tightness}
         cond1 = self.Ncond( apot_comb, elem_comb, qpotNext, Options)
         cond2 = self.Ncond( apot_sym, elem_sym, qpot_sym, Options)
-        print('###############################################################')
-        print('  After expansion:', cond1)
-        print('  Before expansion:', cond2)
-        print('###############################################################')
+        # print('###############################################################')
+        # print('  After expansion:', cond1)
+        # print('  Before expansion:', cond2)
+        # print('###############################################################')
         # split qpot_Expanded into qpots for each molecule
         qpots = self.cut_qpot_comb(qpotNext, nAtoms)
         return qpots
@@ -817,13 +817,13 @@ class Respyte_Optimizer:
         newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
         qpots = self.Model3qpotFn(nAtoms, apot_comb, bpot_comb, weight, tightness,
                                   elem_comb, atomid_comb, self.molecule.atomidinfo,
-                                  newlistofchargeinfo, self.inp.set_charge, equivGroup)
+                                  newlistofchargeinfo, self.inp.fixed_atomic_charge, equivGroup)
 
         # write mol2 files with fitted charges.
         writeMol2 = False
         path = os.getcwd()
         if os.path.isdir('%s/resp_output' % path):
-            print(' resp_output dir already exists!!! will overwrite anyway:/')
+            print('\033[1;31m resp_output dir already exists!!! will overwrite anyway:/\x1b[0m')            
             writeMol2 = True
         else:
             writeMol2 = True
@@ -879,7 +879,7 @@ class Respyte_Optimizer:
                     efrrmss.append(efrrms)
 
                     print(' espRRMS : ', "%.4f" % esprrms)
-                    print(' efRRMS  : ', "%.4f" % efrrms)
+                    print(' efRRMS  : ', "%.4f\n" % efrrms)
                     if writeMol2 is True:
                         if self.inp.cheminformatics == 'openeye':
                             molt = 'oemol'
@@ -931,7 +931,7 @@ class Respyte_Optimizer:
         newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
         qpots_stg1 = self.Model3qpotFn(nAtoms, apot_comb, bpot_comb, weight1, tightness,
                                        elem_comb, atomid_comb, self.molecule.atomidinfo,
-                                       newlistofchargeinfo, self.inp.set_charge, listofPolarEquiv)
+                                       newlistofchargeinfo, self.inp.fixed_atomic_charge, listofPolarEquiv)
 
         print()
         print('-------------------------------------------------------')
@@ -969,7 +969,7 @@ class Respyte_Optimizer:
                     esprrmss.append(esprrms)
                     efrrmss.append(efrrms)
                     print(' espRRMS(1st stg) : ', "%.4f" % esprrms )
-                    print(' efRRMS(1st stg)  : ', "%.4f" % efrrms  )
+                    print(' efRRMS(1st stg)  : ', "%.4f\n" % efrrms  )
                     config += 1
 
             loc += i
@@ -1022,7 +1022,7 @@ class Respyte_Optimizer:
             Nnonpolars.append(Nnonpolar)
         qpots_stg2 = self.Model3qpotFn(Nnonpolars, apot_nonpolar, bpot_nonpolar, weight2, tightness,
                                   elem_nonpolar, atomid_nonpolar, self.molecule.atomidinfo,
-                                  nonpolarchargeinfo, self.inp.set_charge, newlistofNonpolarEquiv)
+                                  nonpolarchargeinfo, self.inp.fixed_atomic_charge, newlistofNonpolarEquiv)
 
         qpots = copy.deepcopy(qpots_stg1)
         for idx, qpot in enumerate(qpots):
@@ -1032,7 +1032,7 @@ class Respyte_Optimizer:
         writeMol2 = False
         path = os.getcwd()
         if os.path.isdir('%s/resp_output' % path):
-            print(' resp_output dir already exists!!! will overwrite anyway:/')
+            print('\033[1;31m resp_output dir already exists!!! will overwrite anyway:/\x1b[0m')
             writeMol2 = True
         else:
             writeMol2 = True
@@ -1084,14 +1084,15 @@ class Respyte_Optimizer:
                         atomname = self.molecule.atomnames[idx][index]
                         atomid = self.molecule.atomids[idx][index]
                         print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
-                    print('MM dipole from two-stg-fit: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
+                    print(' MM dipole from two-stg-fit: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
                     print()
                     esprrms = self.espRRMS(apot, bpot, qpots[idx], espval)
                     efrrms  = self.efRRMS(Aef, Bef, qpots[idx], efval)
                     esprrmss.append(esprrms)
                     efrrmss.append(efrrms)
                     print(' espRRMS : ', "%.4f" % esprrms)
-                    print(' efRRMS  : ', "%.4f" % efrrms)
+                    print(' efRRMS  : ', "%.4f\n" % efrrms)
+                    
                     if writeMol2 is True:
                         if self.inp.cheminformatics == 'openeye':
                             molt = 'oemol'
@@ -1151,15 +1152,15 @@ class Respyte_Optimizer:
         return newapot, list_of_weights
 
     def Model4qpotFn(self, nAtoms, apot_comb, bpot_comb, weight1, weight2, tightness, elem_comb, atomid_comb,
-                     atomidinfo, chargeinfo_comb, set_charge, equivGroupInp, listofpolar_comb):
+                     atomidinfo, chargeinfo_comb, fixed_atomic_charge, equivGroupInp, listofpolar_comb):
 
         def Model4Iteration(qpot_temp):
             newapot, list_of_weights = self.Model4Amatrix(apot_comb, weight1, weight2, tightness, qpot_temp, elem_comb,  listofpolar_comb)
 
             apot_constrained, bpot_constrained = self.LagrangeChargeConstraint(newapot, bpot_comb, chargeinfo_comb)
             apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym= self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, list_of_weights, equivGroupInp)
-            # consider set_charge
-            qpot_sym = self.apply_set_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, set_charge, weights_sym, tightness)
+            # consider fixed_atomic_charge
+            qpot_sym = self.apply_fixed_atomic_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, fixed_atomic_charge, weights_sym, tightness)
             indices_sym = self.getCondensedIndices(len(apot_comb), equivGroupInp)
             qpot_expanded = self.Expandqpot(qpot_sym, indices_sym)
             return qpot_expanded, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym
@@ -1174,10 +1175,10 @@ class Respyte_Optimizer:
         Options = {'weights':list_of_weights, 'tightness': tightness}
         cond1 = self.Ncond( apot_comb, elem_comb, qpotNext, Options)
         cond2 = self.Ncond( apot_sym, elem_sym, qpot_sym, Options)
-        print('###############################################################')
-        print('  After expansion:', cond1)
-        print('  Before expansion:', cond2)
-        print('###############################################################')
+        # print('###############################################################')
+        # print('  After expansion:', cond1)
+        # print('  Before expansion:', cond2)
+        # print('###############################################################')
         # split qpot_Expanded into qpots for each molecule
         qpots = self.cut_qpot_comb(qpotNext, nAtoms)
         return qpots
@@ -1211,14 +1212,14 @@ class Respyte_Optimizer:
         newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
         qpots = self.Model4qpotFn(nAtoms, apot_comb, bpot_comb, weight1, weight2, tightness,
                                   elem_comb, atomid_comb, self.molecule.atomidinfo,
-                                  newlistofchargeinfo, self.inp.set_charge, equivGroup, listofpolar_comb)
+                                  newlistofchargeinfo, self.inp.fixed_atomic_charge, equivGroup, listofpolar_comb)
 
 
         # write mol2 files with fitted charges.
         writeMol2 = False
         path = os.getcwd()
         if os.path.isdir('%s/resp_output' % path):
-            print(' resp_output dir already exists!!! will overwrite anyway:/')
+            print('\033[1;31m resp_output dir already exists!!! will overwrite anyway:/\x1b[0m')            
             writeMol2 = True
         else:
             writeMol2 = True
@@ -1268,14 +1269,14 @@ class Respyte_Optimizer:
                         atomid = self.molecule.atomids[idx][index]
                         print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
                     print()
-                    print('MM dipole from model4: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
+                    print(' MM dipole from model4: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
                     print()
                     esprrms = self.espRRMS(apot, bpot, qpots[idx], espval)
                     efrrms  = self.efRRMS(Aef, Bef, qpots[idx], efval)
                     esprrmss.append(esprrms)
                     efrrmss.append(efrrms)
                     print(' espRRMS : ', "%.4f" % esprrms)
-                    print(' efRRMS  : ', "%.4f" % efrrms)
+                    print(' efRRMS  : ', "%.4f\n" % efrrms)
                     if writeMol2 is True:
                         if self.inp.cheminformatics == 'openeye':
                             molt = 'oemol'
@@ -1333,15 +1334,15 @@ class Respyte_Optimizer:
         return newapot, list_of_weights
 
     def Model6qpotFn(self, nAtoms, apot_comb, bpot_comb, weight, tightness, elem_comb, atomid_comb,
-                     atomidinfo, chargeinfo_comb, set_charge, equivGroupInp,  listofburied_comb):
+                     atomidinfo, chargeinfo_comb, fixed_atomic_charge, equivGroupInp,  listofburied_comb):
 
         def Model6Iteration(qpot_temp):
             newapot, list_of_weights = self.Model6Amatrix(apot_comb, weight, tightness, qpot_temp, elem_comb,   listofburied_comb)
             apot_constrained, bpot_constrained = self.LagrangeChargeConstraint(newapot, bpot_comb, chargeinfo_comb)
             # Force symmetry based on the atomid
             apot_sym, bpot_sym, elem_sym, atomid_sym, weights_sym = self.force_symmetry(apot_constrained, bpot_constrained, elem_comb, atomid_comb, list_of_weights, equivGroupInp)
-            # consider set_charge
-            qpot_sym= self.apply_set_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, set_charge, weights_sym, tightness)
+            # consider fixed_atomic_charge
+            qpot_sym= self.apply_fixed_atomic_charge(apot_sym, bpot_sym, elem_sym, atomid_sym, atomidinfo, fixed_atomic_charge, weights_sym, tightness)
             indices_sym = self.getCondensedIndices(len(apot_comb), equivGroupInp)
             qpot_expanded = self.Expandqpot(qpot_sym, indices_sym)
             return qpot_expanded, list_of_weights, apot_sym, bpot_sym, elem_sym, qpot_sym
@@ -1357,10 +1358,10 @@ class Respyte_Optimizer:
         Options = {'weights':list_of_weights, 'tightness': tightness}
         cond1 = self.Ncond( apot_comb, elem_comb, qpotNext, Options)
         cond2 = self.Ncond( apot_sym, elem_sym, qpot_sym, Options)
-        print('###############################################################')
-        print('  After expansion:', cond1)
-        print('  Before expansion:', cond2)
-        print('###############################################################')
+        # print('###############################################################')
+        # print('  After expansion:', cond1)
+        # print('  Before expansion:', cond2)
+        # print('###############################################################')
         # split qpot_Expanded into qpots for each molecule
         qpots = self.cut_qpot_comb(qpotNext, nAtoms)
         return qpots
@@ -1383,14 +1384,14 @@ class Respyte_Optimizer:
         newlistofchargeinfo = self.combine_chargeinfo(self.molecule.listofchargeinfo, nAtoms)
         qpots = self.Model6qpotFn(nAtoms, apot_comb, bpot_comb, weight, tightness,
                                   elem_comb, atomid_comb, self.molecule.atomidinfo,
-                                  newlistofchargeinfo, self.inp.set_charge, equivGroup, listofburied_comb)
+                                  newlistofchargeinfo, self.inp.fixed_atomic_charge, equivGroup, listofburied_comb)
 
 
         # write mol2 files with fitted charges.
         writeMol2 = False
         path = os.getcwd()
         if os.path.isdir('%s/resp_output' % path):
-            print(' resp_output dir already exists!!! will overwrite anyway:/')
+            print('\033[1;31m resp_output dir already exists!!! will overwrite anyway:/\x1b[0m')            
             writeMol2 = True
         else:
             writeMol2 = True
@@ -1440,14 +1441,14 @@ class Respyte_Optimizer:
                         atomid = self.molecule.atomids[idx][index]
                         print(row_format.format(index, atomname, resname, atomid,"%.4f" % q))
                     print()
-                    print('MM dipole from model6: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
+                    print(' MM dipole from model6: ', self.MMdipole(xyz, self.molecule.elems[idx], qpots[idx]))
                     print()
                     esprrms = self.espRRMS(apot, bpot, qpots[idx], espval)
                     efrrms  = self.efRRMS(Aef, Bef, qpots[idx], efval)
                     esprrmss.append(esprrms)
                     efrrmss.append(efrrms)
                     print(' espRRMS : ', "%.4f" % esprrms)
-                    print(' efRRMS  : ', "%.4f" % efrrms)
+                    print(' efRRMS  : ', "%.4f\n" % efrrms)
                     if writeMol2 is True:
                         if self.inp.cheminformatics == 'openeye':
                             molt = 'oemol'
@@ -1506,3 +1507,46 @@ class Respyte_Optimizer:
             residual = vi - espval
             list_of_residuals.append(residual)
         return list_of_residuals
+
+
+
+    def run(self):
+        print(f'\n\033[1m Run respyte optimizer:\033[0m')
+        if self.inp.restraintinfo:
+            print(f'  * penalty function: \033[1m{self.inp.restraintinfo["penalty"]}\033[0m')
+            if self.inp.restraintinfo['penalty'] == 'model2':
+                aval = self.inp.restraintinfo['a']
+                self.Model2qpot(aval)
+            elif self.inp.restraintinfo['penalty'] == 'model3':
+                aval = self.inp.restraintinfo['a']
+                bval = self.inp.restraintinfo['b']
+                self.Model3qpot(aval, bval)
+            elif self.inp.restraintinfo['penalty'] == 'model4':
+                a1val = self.inp.restraintinfo['a1']
+                a2val = self.inp.restraintinfo['a2']
+                bval = self.inp.restraintinfo['b']
+                self.Model4qpot(a1val, a2val, bval)
+            elif self.inp.restraintinfo['penalty'] == 'model5':
+                a1val = self.inp.restraintinfo['a1']
+                a2val = self.inp.restraintinfo['a2']
+                bval = self.inp.restraintinfo['b']
+                self.Model5qpot(a1val, a2val, bval)
+            elif self.inp.restraintinfo['penalty'] == 'model6':
+                aval = v.restraintinfo['a']
+                bval = self.inp.restraintinfo['b']
+                self.Model6qpot(aval, bval)
+            elif self.inp.restraintinfo['penalty'] == '2-stg-fit':
+                a1val = self.inp.restraintinfo['a1']
+                a2val = self.inp.restraintinfo['a2']
+                bval = self.inp.restraintinfo['b']
+                self.twoStageFit(a1val, a2val, bval)
+            elif self.inp.restraintinfo['penalty'] == '2-stg-fit(6)':
+                aval = self.inp.restraintinfo['a']
+                bval = self.inp.restraintinfo['b']
+                self.twoStageFit_Model6(aval, bval)     
+        else:
+            print(f'  * penalty function:\033[1m 2-stg-fit\033[0m (default)')
+            a1val = 0.0005
+            a2val = 0.001
+            bval = 0.1
+            self.twoStageFit(a1val, a2val, bval)               

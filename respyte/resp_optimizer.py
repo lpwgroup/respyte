@@ -5,18 +5,27 @@ from respyte.select_grid import *
 from respyte.resp_unit import *
 
 def main():
+    print('\n\033[1m#======================================================================#')
+    print('#|                         Welcome to respyte,                        |#')
+    print('#|               a python implementation of RESP method               |#')
+    print('#======================================================================#\033[0m')
+
+    import argparse, sys
+    parser = argparse.ArgumentParser(description="ESP based atomic partial charge generator for MM simulation", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('inputfolder', type=str, help='Input folder with specific directory structure')
+    args = parser.parse_args()
+    # print input command for reproducibility
+    print( 'Command: ' +' '.join(sys.argv))
+
     cwd = os.getcwd()
-    # check if the current working idr contains input folder
-    print('\n')
-    print('---------------------------------------------------------')
-    print(' 1. Reading  input files and folders.                    ')
-    print('---------------------------------------------------------')
-    if os.path.isdir("%s/input" % cwd):
-        print(' Found the input folder. Now read input/respyte.yml')
-    else:
-        print(' Failed to find input folder. Should have input(folder) containing input.yml and molecules(folder)')
+
+    input_file = os.path.join(args.inputfolder, 'respyte.yml')
+    molecules_dir = os.path.join(args.inputfolder, 'molecules')
+    assert os.path.isdir(args.inputfolder), f'{args.inputfolder} not exist' 
+    assert os.path.isdir(molecules_dir), f'{molecules_dir} not exist'
+    assert os.path.isfile(input_file), f'{input_file} not exist'
     # read respyte.yml
-    inp = Input('%s/input/respyte.yml' % (cwd))
+    inp = Input(input_file)
 
     # Create molecule object
     if inp.cheminformatics == 'openeye':
@@ -28,16 +37,16 @@ def main():
         molecule = Molecule_respyte()
 
     molecule.addInp(inp)
-
+    
     for idx, i in enumerate(inp.nmols):
         molN = 'mol%d' % (idx+1)
-        wkd = '%s/input/molecules/%s' % (cwd, molN)
+        wkd = os.path.join(molecules_dir, molN )
         coordfilepath = []
         espffilepath = []
         listofselectedPts = []
         for j in range(i):
             confN = 'conf%d' % (j+1)
-            path = wkd + '/%s' % (confN)
+            path = os.path.join(wkd, confN)
             pdbfile = path + '/%s_%s.pdb' % (molN, confN)
             mol2file = path + '/%s_%s.mol2' % (molN, confN)
             xyzfile = path + '/%s_%s.xyz' % (molN, confN)
@@ -50,7 +59,7 @@ def main():
             elif os.path.isfile(xyzfile):
                 coordpath = xyzfile
                 coordfilepath.append(coordpath)
-                print(' This folder doesn not contain pdb or mol2 file format. ')
+                # print(' This folder doesn not contain pdb or mol2 file format. ')
             else:
                 raise RuntimeError(" Coordinate file should have pdb or mol2 file format! ")
 
@@ -79,44 +88,12 @@ def main():
             listofselectedPts.append(selectedPtsIdx)
         molecule.addCoordFiles(*coordfilepath)
         molecule.addEspf(*espffilepath, selectedPts = listofselectedPts)
-    print('---------------------------------------------------------')
-    print(' 2. Charge fitting to QM data                            ')
-    print('---------------------------------------------------------')
+
     os.chdir(cwd)
     cal = Respyte_Optimizer()
     cal.addInp(inp)
     cal.addMolecule(molecule)
-    if inp.restraintinfo:
-        if inp.restraintinfo['penalty'] == 'model2':
-            aval = inp.restraintinfo['a']
-            cal.Model2qpot(aval)
-        elif inp.restraintinfo['penalty'] == 'model3':
-            aval = inp.restraintinfo['a']
-            bval = inp.restraintinfo['b']
-            cal.Model3qpot(aval, bval)
-        elif inp.restraintinfo['penalty'] == 'model4':
-            a1val = inp.restraintinfo['a1']
-            a2val = inp.restraintinfo['a2']
-            bval = inp.restraintinfo['b']
-            cal.Model4qpot(a1val, a2val, bval)
-        elif inp.restraintinfo['penalty'] == 'model5':
-            a1val = inp.restraintinfo['a1']
-            a2val = inp.restraintinfo['a2']
-            bval = inp.restraintinfo['b']
-            cal.Model5qpot(a1val, a2val, bval)
-        elif inp.restraintinfo['penalty'] == 'model6':
-            aval = inp.restraintinfo['a']
-            bval = inp.restraintinfo['b']
-            cal.Model6qpot(aval, bval)
-        elif inp.restraintinfo['penalty'] == '2-stg-fit':
-            a1val = inp.restraintinfo['a1']
-            a2val = inp.restraintinfo['a2']
-            bval = inp.restraintinfo['b']
-            cal.twoStageFit(a1val, a2val, bval)
-        elif inp.restraintinfo['penalty'] == '2-stg-fit(6)':
-            aval = inp.restraintinfo['a']
-            bval = inp.restraintinfo['b']
-            cal.twoStageFit_Model6(aval, bval)
+    cal.run() 
 
 if __name__ == '__main__':
     main()

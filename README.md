@@ -18,7 +18,10 @@ conda install pandas scipy pyyaml matplotlib future
 conda install -c conda-forge pymbar
 conda install -c omnia forcebalance
 ```
-
+and run `setup.py` for installation:
+```
+python setup.py install
+```
 ## Running
 Before running 'esp_generator.py', Please navigate 'data' folder which contains sample input folder. This will give you 
 some idea about what kind of data structure 'esp_generator.py' and 'resp_optimizer.py' can handle. 
@@ -29,9 +32,11 @@ First, to calculate electrostatic potential (and electric field) using Psi4, cre
 respyte-esp_generator
 ```
 
-If the calculation is successfully done, you can find files with .espf extension in each subfolder,'input/molecules/mol(i)/conf(j)'. This stores all the grid point informations with specific file format for 'resp_optimizer.py'. Then you are ready to go to the next step. Write respyte.yml inside `input/` and run this command where your `input/` folder exists:
+If the calculation is successfully done, you can find files with .espf extension in each subfolder,'input/molecules/mol(i)/conf(j)'. This stores all the grid point informations with specific file format for 'resp_optimizer.py'. Then you are ready to go to the next step. Write respyte.yml inside `<input-dir-name>` and run this command where your `<input-dir-name>` folder exists:
 
-`respyte-optimizer`
+```
+respyte-optimizer input-dir-name
+```
 
 
 #### Copyright
