@@ -1,6 +1,8 @@
 
 ***respyte***
 ==============================
+[![Build Status](https://travis-ci.org/lpwgroup/respyte.svg?branch=re-formatting)](https://travis-ci.org/lpwgroup/respyte)
+
 A python implementation of open-source version of RESP method
 
 ## Short description of respyte beta ver.
