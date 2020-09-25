@@ -103,4 +103,4 @@ resp(molecules, symmetry='all', model='point_charge', penalty=penalty, procedure
 
 #### Copyright
     
-Copyright (c) 2020, Hyesu Jang
+Copyright (c) 2018, Hyesu Jang
