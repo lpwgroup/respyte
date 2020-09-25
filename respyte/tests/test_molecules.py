@@ -14,7 +14,7 @@ def test_respyte_molecule():
     test_coord_fnm = os.path.join(test_folder, 'test.pdb')
     test_espf_fnm  = os.path.join(test_folder, 'test.espf')
     molecule  = respyte_molecule(molecule_name='test_mol', coord_fnm=test_coord_fnm, 
-                                 espf_fnm=test_espf_fnm, setting=None, input_equiv_atoms=[])
+                                 espf_fnm=test_espf_fnm, settings=None, input_equiv_atoms=[])
     assert len(set(molecule.atomids))  ==  4
     
     molecule.set_atom_id(symmetry='nosym')
@@ -35,7 +35,7 @@ def test_respyte_molecules():
     test_coord_fnm = os.path.join(test_folder, 'test.pdb')
     test_espf_fnm  = os.path.join(test_folder, 'test.espf')
     molecule  = respyte_molecule(molecule_name='test_mol', coord_fnm=test_coord_fnm, 
-                                 espf_fnm=test_espf_fnm, setting=None, input_equiv_atoms=[])
+                                 espf_fnm=test_espf_fnm, settings=None, input_equiv_atoms=[])
     molecule.set_net_charge(0)
 
     molecules =  respyte_molecules()
