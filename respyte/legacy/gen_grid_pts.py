@@ -49,12 +49,14 @@ try:
     import rdkit.Chem as rdchem
 except ImportError:
     warn(' The rdkit module cannot be imported. ' )
-# try:
-#     import openeye.oechem as oechem
-# except ImportError:
-#     warn(' The Openeye module cannot be imported. ')
+try:
+    import openeye.oechem as oechem
+except ImportError:
+    warn(' The Openeye module cannot be imported. ')
 
-from respyte.fbmolecule import *
+# import molecule module copied from ForceBalance package
+# just in case a user doesn't use any cheminformatics
+from respyte.molecule import *
 
 def GenerateVdwNeighborList( mol, atomi, scalefac, moltype = 'OEMol'):
     '''Scaling the atomic radii by scalefac, this function returns a list of OEAtoms

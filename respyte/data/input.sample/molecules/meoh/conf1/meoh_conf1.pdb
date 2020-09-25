@@ -1,0 +1,14 @@
+REMARK   1 CREATED WITH FORCEBALANCE 2020-06-30
+HETATM    1  O1  MOL A   1       0.041  -0.764   0.000  0.00  0.00           O  
+HETATM    2  H2  MOL A   1      -0.855  -1.064   0.000  0.00  0.00           H  
+HETATM    3  C3  MOL A   1       0.041   0.661   0.000  0.00  0.00           C  
+HETATM    4  H4  MOL A   1       1.087   0.980   0.000  0.00  0.00           H  
+HETATM    5  H5  MOL A   1      -0.405   1.118   0.888  0.00  0.00           H  
+HETATM    6  H6  MOL A   1      -0.405   1.118  -0.888  0.00  0.00           H  
+TER       7      MOL A   1
+CONECT    1    2    3
+CONECT    2    1
+CONECT    3    1    4    5    6
+CONECT    4    3
+CONECT    5    3
+CONECT    6    3

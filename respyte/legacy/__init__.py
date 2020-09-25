@@ -7,6 +7,9 @@ Implementation of open-source vrsion of RESP method
 # Safe to remove with Python 3-only code
 from __future__ import absolute_import
 
+# Add imports here
+from respyte.esp_generator import *
+from respyte.resp_optimizer import *
 
 # Handle versioneer
 from ._version import get_versions

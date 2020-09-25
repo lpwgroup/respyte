@@ -1,33 +1,34 @@
-from respyte.molecule import *
+from respyte.fbmolecule import * 
+from respyte.fbmolecule import Molecule as FBMolecule
 
-BondiRadii = [1.2, 1.4, # exchanged None to 2.0
-              1.81, 2.00, 2.00, 1.70, 1.55, 1.52, 1.47, 1.54,
-              2.27, 1.73, 2.00, 2.22, 1.80, 1.80, 1.75, 1.88,
-              2.75, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 1.63, 1.40, 1.39, 1.87, 2.00, 1.85, 1.90, 1.83, 2.02,
-              2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 1.63, 1.72, 1.62, 1.93, 2.17, 2.00, 2.00, 1.98, 2.16]
-# from oechem
-BondiRadiiOechem = [1.20, 1.40,
-                    1.82, 2.00, 2.00, 1.70, 1.55, 1.52, 1.47, 1.54,
-                    2.27, 1.73, 2.00, 2.01, 1.80, 1.80, 1.75, 1.88,
-                    2.75, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 1.63, 1.40, 1.39, 1.87, 2.00, 1.85, 1.90, 1.85, 2.02,
-                    2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 1.72, 1.58, 2.00, 2.17, 2.00, 2.06, 1.98, 2.16]
+def SelectGridPts(pts, settings):
 
-AlvarezRadii = [1.20, 1.43,
-                2.12, 1.98, 1.91, 1.77, 1.66, 1.50, 1.46, 1.58,
-                2.50, 2.51, 2.25, 2.19, 1.90, 1.89, 1.82, 1.83,
-                2.73, 2.62, 2.58, 2.46, 2.42, 2.45, 2.45, 2.44, 2.40, 2.40, 2.38, 2.39, 2.32, 2.29, 1.88, 1.82, 1.86, 2.25,
-                3.21, 2.84, 2.75, 2.52, 2.56, 2.45, 2.44, 2.46, 2.44, 2.15, 2.53, 2.49, 2.43, 2.42, 2.47, 1.99, 2.04, 2.06]
-PolarHradii = 0.95 # in Angstrom
-bohr2Ang = 0.52918825
+    # settings have fbmol, inner, outer, radiiType  
+    if 'mol'  in settings: 
+        mol = settings['mol']
+        assert isinstance(mol, FBMolecule)
+    else: 
+        raise KeyError('fbmol should  be given for selecting pts' )
+    
+    if 'radiiType' in settings:
+        if settings['radiiType'] == 'bondi':
+            radiiType = BondiRadii
+        elif settings['radiiType'] == 'Alvarez':
+            radiiType = AlvarezRadii
+    else: 
+        radiiType = BondiRadii
+    
+    if  'inner' in settings:
+        inner = settings['inner']
+    else: 
+        inner = 1.4
 
+    if  'outer' in settings:
+        outer = settings['outer']
+    else: 
+        outer = 2.0
 
-def SelectGridPts(mol, inner, outer, pts, radiiType):
-    if radiiType == 'bondi':
-        # radiiType = BondiRadii
-        radiiType = BondiRadiiOechem
-    elif radiiType == 'Alvarez':
-        radiiType = AlvarezRadii
-    culled = []
+    selectedPtsIdx = []
     selectedPts = []
     xyzs = mol.xyzs[0]
     innersSq = []
@@ -36,8 +37,8 @@ def SelectGridPts(mol, inner, outer, pts, radiiType):
 
     for elem in atomicNum:
         radii = float(radiiType[int(elem)-1])
-        innersSq.append(radii*radii*inner*inner)
-        outersSq.append(radii*radii*outer*outer)
+        innersSq.append(radii*radii*(inner-1e-4)*(inner-1e-4))
+        outersSq.append(radii*radii*(outer+1e-4)*(outer+1e-4))
     for idx, pt in enumerate(pts):
         goodPt = False
         for xyz, innerSq, outerSq in zip(xyzs, innersSq, outersSq):
@@ -45,14 +46,13 @@ def SelectGridPts(mol, inner, outer, pts, radiiType):
             dy = pt[1]-xyz[1]
             dz = pt[2]-xyz[2]
             distSq = dx*dx + dy*dy + dz*dz
-            if distSq < outerSq:
+            if distSq <= outerSq:
                 goodPt = True
             if distSq < innerSq:
                 goodPt = False
                 break
         if goodPt:
-            culled.append(idx)
+            selectedPtsIdx.append(idx)
             selectedPts.append(pt)
 
-    return culled, selectedPts
-
+    return selectedPtsIdx, selectedPts

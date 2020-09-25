@@ -1,117 +1,50 @@
-## This file is a sample respyte.yml, input file for resp_optimzer.py
-## 'respyte.yml' should be included in 'input' directory', generated from running esp_generator.
+# This file is a sample respyte.yml, input file for main.py
+# The file name should be 'respyte.yml' and it should be located in the input directory with 'molecules' directory.
+# Data structure:
+# <input dir>/
+# |----respyte.yml
+# |----molecules/
+#      |----<molecule name>/
+#           |----conf1/
+#                |----<molecule name>_conf1.pdb(or .mol2), <molecule name>_conf1.espf (gen from esp_generator.py)
+#           |----conf2/
+#                |----<molecule name>_conf2.pdb(or .mol2), <molecule name>_conf2.espf (gen from esp_generator.py) 
 
-## Data structure (generated from running esp_generator.py or can manually be generated with an appropriate data structure):
-## input/
-## |----respyte.yml
-## |----molecules/
-##      |----mol1/
-##           |----conf1/
-##                |----mol1_conf1.pdb(or .mol2) , mol1_conf1.espf
-##           |----conf2/
-##                |----mol1_conf2.pdb(or .mol2) , mol1_conf2.espf
-## if xyz format has been used for esp generator, the data structure from esp_generator.py is containing pdb format converted from input xyz.
+# 1. molecules: list of molecule names  and the number of conformers for each molecule. 
+# For example, if the user wants to generate espf data for 2 different molecules, mol1 and mol2 
+# and have 5 conformers each, molecules should be given like below. 
+# molecules : 
+#     mol1 : 5
+#     mol2 : 5
+# (Each coordinate file should be either PDB or Mol2 file format and should be 
+# located in molecules/<molecule name>/conf(j)/<molecule name>_conf(j).pdb(or .mol2) (j is integer)
+molecules:
+    meoh : 1
 
-## In molecules, the number of molecules and the number of conformers for each molecule are assigned.
-## For example, if the user wants to generate espf data for 2 different molecules with 5 conformers each,
-## molecules is like below. (Each coordinate file should be either PDB or Mol2 file format and should be
-## located in molecules/mol(i)/mol(j)/ ((i), (j) is integer) with its filename, mol(i)_mol(j).pdb(or .mol2)
-## molecules :
-##     mol1 : 5
-##     mol2 : 5
-molecules : 
-    mol1 : 1
-## In charges, user should specify a total charge of each residue. 
-## If the input molecule is small molecule, should specify net charge of each species.
-charges : 
-    mol1 : 0
+# 2. charges: the user should provide a net charge of each molecule. If not, it consider the molecule as neutral.
+# if mol1 is neutral and mol2 has -1 charge, charges should be given like below:  
+# charges :
+#     mol1 :  0
+#     mol2 : -1
+charges :
+    meoh : 0
 
-## In Cheminformatics, user can choose 'openeye' or 'rdkit' or 'None'
-## For now, rdkit option is not implemented yet.
-cheminformatics : openeye
-
-## If 'symmetry' is set to be True, it will force symmetry between equivalent atoms during the fitting.
-symmetry : True
-
-## If 'normalization' is set to be True, the size of A matrix will be normalized so that 
-## all A matrices have the same scale with methanol A matrix regardless of the size of molecule or grid set.
-normalization : True
-
-## In boundary_select, user can select subset of grid.dat
-## If boundary_select is not set, it uses all grid points in grid.dat for fitting.
+# boundary_select: user can select subset of grid information
+# If boundary_select is not set, it uses all grid points in espf file for the fitting.
 boundary_select: 
     radii    : bondi
     inner    : 1.4
     outer    : 2.0
 
-## In restraint, user can specify which restraint(model2, model3 and two-stage fit) to use. 
-restraint :
-    # penalty : model2
-    # a       : 0.005
+model :  point_charge # point_charge or fuzzy_charge
 
-    # penalty  : model3
-    # matrices :
-    #     - esp
-    # #    - ef
-    # a        : 0.0005
-    # b        : 0.1
+#  penalty: penalty type. specify c for smearing parameter for fuzzy charge model, unless default c=0.1 will be applied
+penalty :  
+    type : L2
+    a : 0.001
+    b : 0.1 
 
-    penalty : 2-stg-fit
-    matrices :
-        - esp
-    a1      : 0.0005
-    a2      : 0.001
-    b       : 0.1
+procedure : 2 #  specify whether  to use single-stage or two-stage fitting
 
-## User can set user-defined constraints on specific charges 
-## (net charge constraints on residues or atoms, forcing charge equivalence across residues)
-#set_charge:
-#    atom1:
-#        resname: ALA
-#        atomname: CA
-#        charge: -0.2
-#    atom2:
-#        resname: ALA
-#        atomname: HA
-#        charge: 0.2
+symmetry : all # all, polar, nosym
 
-#net_set:
-#    GLU : -1
-
-# charge_equal:
-#     group1:
-#         atomname: N
-#         resname: [LYN, TRP, PRO, GLY, SER, MET, PHE, CYS, ILE,ASN, VAL, HIE, ASH, HID, LEU, ALA, GLN, TYR, THR, GLH]
-#     group2:
-#         atomname: C
-#         resname: [LYN, TRP, PRO, GLY, SER, MET, PHE, CYS, ILE, ASN, VAL, HIE, ASH, HID, LEU, ALA, GLN, TYR, THR, GLH]
-#     group3:
-#         atomname: O
-#         resname: [LYN, TRP, PRO, GLY, SER, MET, PHE, CYS, ILE, ASN, VAL, HIE, ASH, HID, LEU, ALA, GLN, TYR, THR, GLH]
-#     group4:
-#         atomname: H
-#         resname: [LYN, TRP, PRO, GLY, SER, MET, PHE, CYS, ILE, ASN, VAL, HIE, ASH, HID, LEU, ALA, GLN, TYR, THR, GLH]
-#     group5:
-#         atomname: N
-#         resname : [ARG, LYS, HIP]
-#     group6:
-#         atomname: N
-#         resname : [ASP, GLU, CYM]
-#     group7:
-#         atomname: C
-#         resname : [ARG, LYS, HIP]
-#     group8:
-#         atomname: C
-#         resname : [ASP, GLU, CYM]
-#     group9:
-#         atomname: O
-#         resname : [ARG, LYS, HIP]
-#     group10:
-#         atomname: O
-#         resname : [ASP, GLU, CYM]
-#     group11:
-#         atomname: H
-#         resname : [ARG, LYS, HIP]
-#     group12:
-#         atomname: H
-#         resname : [ASP, GLU, CYM]

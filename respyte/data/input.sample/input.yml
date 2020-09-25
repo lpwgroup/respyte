@@ -1,31 +1,39 @@
 # This file is a sample input.yml, input file for esp_generator.py
-# 'input.yml' should be included in 'input' directory with 'molecules' directory to run esp_generator.
+# The file name should be 'input.yml' and it should be located in the input directory with 'molecules' directory.
+# Data structure:
+# <input dir>/
+# |----respyte.yml
+# |----molecules/
+#      |----<molecule name>/
+#           |----conf1/
+#                |----<molecule name>_conf1.pdb(or .mol2) 
+#           |----conf2/
+#                |----<molecule name>_conf2.pdb(or .mol2) 
 
-# In molecules, the number of molecules and the number of conformers for each molecule are assigned. 
-# For example, if the user wants to generate espf data for 2 different molecules with 5 conformers each, 
-# molecules is like below. (Each coordinate file should be either PDB or Mol2 file format and should be 
-# located in molecules/mol(i)/mol(j)/ ((i), (j) is integer) with its filename, mol(i)_mol(j).pdb(or .mol2)  
+# 1. molecules: list of molecule names  and the number of conformers for each molecule. 
+# For example, if the user wants to generate espf data for 2 different molecules, mol1 and mol2 
+# and have 5 conformers each, molecules should be given like below. 
 # molecules : 
 #     mol1 : 5
 #     mol2 : 5
+# (Each coordinate file should be either PDB or Mol2 file format and should be 
+# located in molecules/<molecule name>/conf(j)/<molecule name>_conf(j).pdb(or .mol2) (j is integer)
 molecules:
-    mol1 : 1
-# In charges, the user should provide charge of each molecule. If not, it consider all molecules as neutral.
-# if mol1 is neutral and mol2 has -1 charge,  
+    meoh : 1
+
+# 2. charges: the user should provide a net charge of each molecule. If not, it consider the molecule as neutral.
+# if mol1 is neutral and mol2 has -1 charge, charges should be given like below:  
 # charges :
 #     mol1 :  0
 #     mol2 : -1
 charges :
-    mol1 : 0
-# In Cheminformatics, user can choose 'openeye' or 'rdkit' or 'None' 
-# But for now,  'None' option is not implemented yet, please consider use open-source 'rdkit' instead'
-cheminformatics : openeye
+    meoh : 0
 
-# In grid_Setting, (explanation) 
-grid_setting :  
-    forcegen  : Y
+# 3. settings: settings for grid point generation and Psi4 ESP calculation
+settings :
+    forcegen  : Y   # whether to force generating new grid.dat when grid.dat already exists.
     type      : msk # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
-    radii     : bondi # bondi(default)/ modbondi
+    radii     : bondi 
     method    : HF
     basis     : 6-31g*
     pcm       : N

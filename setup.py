@@ -1,6 +1,5 @@
 """
-respyte
-Implementation of open-source vrsion of RESP method
+respyte-beta ver. setup.py
 """
 from setuptools import setup
 import versioneer
@@ -26,17 +25,17 @@ setup(
     license='BSD-3-Clause',
 
     # Which Python importable modules should be included when your package is installed
-    packages=['respyte',
+    packages=['respyte'],
               #"respyte.molecule",
-              "respyte.tests"],
+              #"respyte.tests"],
 
     # Optional include package data to ship with your package
     # Comment out this line to prevent the files from being packaged with your software
     # Extend/modify the list to include/exclude other items as need be
-    package_data={'respyte': ["data/*.dat"]
-                  },
+    # package_data={'respyte': ["data/*.dat"]
+    #               },
     entry_points={'console_scripts': [
-        'respyte-optimizer = respyte.resp_optimizer:main',
+        'respyte-optimizer = respyte.main:main',
         'respyte-esp_generator = respyte.esp_generator:main']},
     # Additional entries you may want simply uncomment the lines you want and fill in the data
     # author_email='me@place.org',      # Author email

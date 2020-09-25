@@ -4,7 +4,7 @@ import numpy as np
 # from molecule_resp import Molecule_HJ
 from collections import OrderedDict
 from warnings import warn
-from respyte.fbmolecule import *
+from respyte.molecule import *
 
 class Engine(object):
     def __init__(self, coordfile = None, input_file = None):
