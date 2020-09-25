@@ -89,7 +89,7 @@ molecules = respyte_molecules()
 molecules.add_molecule(molecule) 
 ```
 #### (2) `objective.py`
-: **Objective object** mainly calculate an objective function, gradient and hessian of the objective function at a given point of parameter space. you can set the model as ‘point_charge’  or ‘fuzzy_charge’ And penalty is a dictionary containing information of additive penalty term in the objective function. One example is `penalty={'type': 'L2', 'a': 0.001, 'b': 0.1}`, which specifies hyperbolic charge restraint with a=0.001, b=0.1,  which is a weak restraining weight in 1993 paper. 
+: **Objective object** mainly calculate an objective function, gradient and hessian of the objective function at a given point of parameter space. you can set the model as ‘point_charge’  or ‘fuzzy_charge’ And penalty is a dictionary containing information of additive penalty term in the objective function. One example is `penalty={'type': 'L1', 'a': 0.001, 'b': 0.1}`, which specifies hyperbolic charge restraint with a=0.001, b=0.1,  which is a weak restraining weight in 1993 paper. 
 
 It stores the values (q and alpha) into `vals`(list) and their information into `val_info`(list). `val_info` stores atom id, model (‘point_charge’ or ‘fuzzy_charge’) and variable type(‘q’ or ‘alpha’). An example of `vals` and `val_info` is like this: 
 ```
@@ -104,7 +104,7 @@ val_info = [[0, 'point_charge', 'q'], [1, 'point_charge', 'q'], [2, 'point_charg
 An example of the usage of the function is:
 ```
 print('example 1. analytic solution of single-stg-fit\n')
-penalty =  {'type': 'L2', 'a': 0.001, 'b': 0.1}
+penalty =  {'type': 'L1', 'a': 0.001, 'b': 0.1}
 resp(molecules, symmetry='all', model='point_charge', penalty=penalty, procedure=1)
 ```
 

@@ -29,7 +29,7 @@ class Input:
             self.resChargeDict = {}
             self.equiv_atoms = []
             self.model = 'point_charge'
-            self.penalty = {'type': 'L2', 'a': 0.001, 'b': 0.1}
+            self.penalty = {'type': 'L1', 'a': 0.001, 'b': 0.1}
             self.procedure  = 1
             self.gridinfo = None 
             # self.gridspace = 0.7 
@@ -134,7 +134,7 @@ class Input:
             penalty = inp['penalty']
             print(f'  * penalty: {penalty}') 
         else:
-            penalty = {'type': 'L2', 'a': 0.001, 'b': 0.1}
+            penalty = {'type': 'L1', 'a': 0.001, 'b': 0.1}
             print(f'  * penalty: {penalty} (default)')
 
         if 'procedure' in inp:

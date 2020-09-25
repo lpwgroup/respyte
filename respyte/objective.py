@@ -265,7 +265,8 @@ class respyte_penalty:
         X2 = 0
         G2 = np.zeros((len(vals_)))
         H2 = np.zeros((len(vals_), len(vals_)))
-        if self.penalty_type['type'] == 'L2':
+        if self.penalty_type['type'] == 'L1':
+            # L1: hyperbolic penalty function
             a = self.penalty_type['a'] 
             b = self.penalty_type['b']
             for molecule in self.molecules.mols:
@@ -280,6 +281,8 @@ class respyte_penalty:
                         X2 += x
                         G2[vidx] += g
                         H2[vidx][vidx] += h
+        # if self.penalty_type['type'] == 'L2':
+        #     # L2: harmonic penalty function
 
         if  self.model == 'fuzzy_charge':
             if 'c'  in self.penalty_type.keys():

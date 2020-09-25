@@ -54,7 +54,7 @@ model :  point_charge # point_charge or fuzzy_charge
 
 #  penalty: penalty type. specify c for smearing parameter for fuzzy charge model, unless default c=0.1 will be applied
 penalty :  
-    type : L2
+    type : L1 # L1: hyperbolic penalty function
     a : 0.001
     b : 0.1 
 
