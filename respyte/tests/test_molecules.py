@@ -24,7 +24,7 @@ def test_respyte_molecule():
     assert len(set(molecule.atomids))  ==  6
 
     molecule.set_net_charge(0)
-    indices, charge = molecule.fixed_chrages[0]
+    indices, charge = molecule.fixed_charges[0]
     assert indices == [0,1,2,3,4,5]
     assert charge == 0
 
