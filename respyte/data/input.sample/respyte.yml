@@ -29,12 +29,26 @@ molecules:
 charges :
     meoh : 0
 
-# boundary_select: user can select subset of grid information
+# 3. boundary_select: user can select subset of grid information
 # If boundary_select is not set, it uses all grid points in espf file for the fitting.
 boundary_select: 
     radii    : bondi
     inner    : 1.4
     outer    : 2.0
+
+# residue_charge : # specify residue charge
+#    GLU : -1
+# 
+# fixed_atomic_charge : # specify fixed atomic charge
+#     atom1 :
+#        resname: ALA
+#        atomname: CA
+#        charge: -0.2
+# 
+# equiv_atoms : # speify equivalent atoms 
+#     group1:
+#         atomname: N
+#         resname: [LYN, TRP, PRO, GLY, SER, MET, PHE, CYS, ILE,ASN, VAL, HIE, ASH, HID, LEU, ALA, GLN, TYR, THR, GLH]
 
 model :  point_charge # point_charge or fuzzy_charge
 

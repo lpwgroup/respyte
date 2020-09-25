@@ -27,7 +27,7 @@ class Input:
             self.mols = {}
             self.fixed_atomic_charge = {}
             self.resChargeDict = {}
-            self.equiv_atoms = {}
+            self.equiv_atoms = []
             self.model = 'point_charge'
             self.penalty = {'type': 'L2', 'a': 0.001, 'b': 0.1}
             self.procedure  = 1
@@ -94,17 +94,21 @@ class Input:
                 assert 'atomname' in group_info, f'atomname not specified in {group}'
                 assert 'resname' in group_info, f'resname not specified in {group}'
             equiv_atoms_inp = inp['equiv_atoms']
-            print(f'  * equiv_atoms: {equiv_atoms_inp}')
         else:
-            print(f'  * equiv_atoms: None')
             equiv_atoms_inp = {}
 
         newequiv_atoms = []
         for i in equiv_atoms_inp:
-            atomname = equiv_atoms_inp[i]['atomname']
-            resname = equiv_atoms_inp[i]['resname']
-            newequiv_atoms.append([atomname, resname])
+            atomnames = equiv_atoms_inp[i]['atomname']
+            if isinstance(atomnames, str): 
+                atomnames = [atomnames]
+            resnames = equiv_atoms_inp[i]['resname']
+            if isinstance(resnames, str):
+                resname = [resnames]
+            newequiv_atoms.append([atomnames, resnames])
         equiv_atoms = newequiv_atoms
+        print(f'  * equiv_atoms: {equiv_atoms}')
+        
         # 6. symmetry
         if 'symmetry' in inp:
             assert inp['symmetry'] in ['all', 'polar', 'nosym'], 'symmetry should be either all, polar or nosym'
