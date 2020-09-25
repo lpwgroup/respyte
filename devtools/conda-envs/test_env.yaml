@@ -11,6 +11,8 @@ dependencies:
   - numpy
   - PyYAML
   - scipy
+  - networkx
+  - rdkit
 
     # Pip-only installs
   - pip:
