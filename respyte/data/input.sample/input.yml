@@ -33,8 +33,30 @@ charges :
 settings :
     forcegen  : Y   # whether to force generating new grid.dat when grid.dat already exists.
     type      : msk # msk(default)/ extendedmsk/ fcc/ newfcc/ vdwfactors/ vdwconstants
-    radii     : bondi 
+    inner     : 1.4 # inter boundary of grid pts
+    outer     : 2.0 # outer boundary of grid pts
+    space     : 1.0 # grid density, the value is a shortest distance between the closest grid pts
+    radii     : bondi # radii type, bondi or Alvarez
     method    : HF
     basis     : 6-31g*
     pcm       : N
     # solvent   : water
+
+# Here's a short description of grid types  
+#
+# Type options: 
+# (You mostly would choose either msk or newfcc.)
+#  1. msk: msk with decaut space=1.0
+#  2. extendedmsk: msk with default inner=0.8, outer=2.4, space=1.0
+#  3. fcc: shellFacConst with default outer=1.0 
+#  4. newfcc: shellFac with default inner=0.8, outer=2.4
+#  5. vdwfactors: shellFac
+#  6. vdwconstants: shellConst with default inner=0.4, outer=1.0
+#
+# Grid Type teminology:
+#  * shellConst: the cutoffs are constants added to the vdw radius
+#  * shellFac: the cutoffs are factors of the vdw radius
+#  * shellFacConst: the inner cutoff is a factor of the vdw radius,
+#    the outer cutoff is a constant added to the inner vdw radius
+#    creating a vdw-based shell of constant thickness
+#  * MSK: (Merz-Singh-Kollman) 4 shells: 1.4, 1.6, 1.8, 2.0 times vdW radius
