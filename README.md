@@ -39,16 +39,16 @@ Before running, Please navigate `/data/input.sample` which contains sample of in
 #### 2.1. ESP calculation using Psi4
 First, to calculate electrostatic potential (and electric field) using Psi4, create input folder with an appropriate data structure and an input file,  `input.yml`. Then run this command:
 ```
-respyte-esp_generator <input-dir-name>
+respyte-esp_generator input-dir-name
 ```
 #### 2.2. Charge fitting 
 
-Once the ESP calculation is successfully done, you are ready to go to the next step. You can find the  output  files with `.espf` extension in each subfolder,`<input-dir-name>/molecules/<molecule name>/conf(j)`,  which  store all the grid point informations with a file format that the respyte package can understand.
+Once the ESP calculation is successfully done, you are ready to go to the next step. You can find the  output  files with `.espf` extension in each subfolder,`input-dir-name/molecules/molecule-name/conf(j)`,  which  store all the grid point informations with a file format that the respyte package can understand.
 
-Write `respyte.yml` inside `<input-dir-name>` and run this command:
+Write `respyte.yml` inside `input-dir-name` and run this command:
 
 ```
-respyte-optimizer <input-dir-name>
+respyte-optimizer input-dir-name
 ```
 
 ### 3. Using respyte as a python module
@@ -68,21 +68,31 @@ molecule.set_net_charge(0)
 main attributes of molecule object: 
 - `self.mol` : forcebalance molecule object. storing coordinates, element, and vdw radius of all atoms 
 - `self.polar_atom_indices` : list of indice of polar atoms (all atoms except for alkyl carbons and alkyl hydrogens)
-- `self.atomids` : list of atom ids (similar with atom type concept in general force field) 
-- `self.atomid_dict` : dictionary storing information about each atom id
-- For  example, atomids and atomid_dict for methanol molecule are: 
+- `self.atom_equiv` : a dictionary, whose keys are equivalence level('nosym', 'connectivity', 'relaxed_connectivity', 'symbol', 'symbol2') and the values are dictionaries, having 'equivs', a list of equiv values for the corresponding equivalence level, and 'info', a dictionary contains definition of each equiv value. Note that term, 'equiv' is the replacement of 'atomid'
+- For  example, atom_equiv for methanol molecule are: 
 ```
-atomids = [3, 1, 2, 0, 0, 0]
-atomid_dict = defaultdict(list,
-{3: [{'molname': 'meoh', 'resname': 'MOL',  'atomname': 'O1', 'elem': 'O', 'vdw_radius': 2.8723237902580037}],
- 1: [{'molname': 'meoh', 'resname': 'MOL', 'atomname': 'H2', 'elem': 'H', 'vdw_radius': 2.267624044940529}],
- 2: [{'molname': 'meoh', 'resname': 'MOL',  'atomname': 'C3',  'elem': 'C', 'vdw_radius': 3.2124673969990827}],
- 0: [{'molname': 'meoh', 'resname': 'MOL', 'atomname': 'H4', 'elem': 'H', 'vdw_radius': 2.267624044940529},
-      {'molname': 'meoh', 'resname': 'MOL',  'atomname': 'H5', 'elem': 'H', 'vdw_radius': 2.267624044940529},
-      {'molname': 'meoh', 'resname': 'MOL',  'atomname': 'H6',  'elem': 'H', 'vdw_radius': 2.267624044940529}]})
+In [4]: molecule.atom_equiv.keys()
+Out[4]: dict_keys(['nosym', 'connectivity', 'relaxed_connectivity', 'symbol', 'symbol2'])
+```
+
+```
+In [5]: molecule.atom_equiv['connectivity']['equivs']
+Out[5]: [2, 0, 3, 1, 1, 1]
+```
+Atom number 4 to 6 are assigned to the same equiv value 1 in the equivalence level 'connectivity', meaning that the atoms are equivalent in the level. (they are three alkyl hydrogens in a methanol molecule.)
+
+And the information of the equiv value 2 can be searched like this:
+```
+In [6]: molecule.atom_equiv['connectivity']['info'][2]
+Out[6]: 
+[{'molname': 'meoh',
+  'resname': '<0>',
+  'atomname': 'O1',
+  'elem': 'O',
+  'vdw_radius': 1.52}]
 ```
 - `self.gridxyz`, `self.espval`, `self.efval` : information about grids and QM values
-- Please note that all the units of length are converted into Bohr, not Angstrom.
+- All the units of length are Angstrom.
 - And **molecules object**  take multiple molecule objects and reassign atomids so that there’s no atom id used multiple times for different atoms. 
 ```
 # create a respyte molecules object
@@ -90,24 +100,65 @@ molecules = respyte_molecules()
 # add onle molecule object to molecules object
 molecules.add_molecule(molecule) 
 ```
-#### (2) `objective.py`
-: **Objective object** mainly calculate an objective function, gradient and hessian of the objective function at a given point of parameter space. you can set the model as ‘point_charge’  or ‘fuzzy_charge’ And penalty is a dictionary containing information of additive penalty term in the objective function. One example is `penalty={'type': 'L1', 'a': 0.001, 'b': 0.1}`, which specifies hyperbolic charge restraint with a=0.001, b=0.1,  which is a weak restraining weight in 1993 paper. 
+#### (2) `model.py`
+Model object takes molecules object and build a parameter set, `parms`, which is a list of initial guesses of parameters to be fitted to QM properties. Currently point charge model and fuzzy charge model are implemented. 
 
-It stores the values (q and alpha) into `vals`(list) and their information into `val_info`(list). `val_info` stores atom id, model (‘point_charge’ or ‘fuzzy_charge’) and variable type(‘q’ or ‘alpha’). An example of `vals` and `val_info` is like this: 
+#### (3) `objective.py`
+: **Objective object** (1) builds a set of parameters and an objective function of the system from the input molecules object and model object, and (3) calculate the objective function value, gradient and hessian of the objective function at a given point in optimizer, and (4) keep the fitted parameters the information of each parameter into `parms` and  `parm_info`. 
+An example of how to build objective object:
 ```
-vals = [0, 0, 0, 0, 1] 
-val_info = [[0, 'point_charge', 'q'], [1, 'point_charge', 'q'], [2, 'point_charge', 'q'], [3, 'point_charge', 'q'], ['l0', 'point_charge', 'lambda']]
-```
-#### (3) `optimizer.py`
-: **Optimizer object** take objective object and run Newton-Rapson method using scipy and return the values once the convergence criterion is  met. 
+# create an objective from molecules
+objective = respyte_objective(molecules)
 
-#### (4) `procedure.py`
-: function called `resp` which run single-stage or two-stage fitting  procedure. 
-An example of the usage of the function is:
+# add model and build parameter set to be fitted
+parameter_types ={'charge':'connectivity'}
+objective.add_model(model_type='point_charge', parameter_types=parameter_types)
+
+# add penalty function for parameter regularization 
+penalty = {'ptype':'L1', 'a':0.001, 'b':0.1}
+objective.add_penalty(penalty)
 ```
-print('example 1. analytic solution of single-stg-fit\n')
+And the created parameter set will be like this. (note that the values are initial guesses.)
+```
+In []: objective.parms
+Out[]: [0, 0, 0, 0, 1]
+
+In []: objective.parm_info
+Out[]: # each element means: equiv value, parameter type, equivalence level of the parameter.
+[[0, 'charge', 'connectivity'],
+ [1, 'charge', 'connectivity'],
+ [2, 'charge', 'connectivity'],
+ [3, 'charge', 'connectivity'],
+ ['l0', 'lambda', 'connectivity']] 
+```
+
+#### (4) `optimizer.py`
+: **Optimizer object** take objective object and run Newton-Rapson method using scipy and return the values once the convergence criterion is  met. Once the objective object is generated, you can run the optimization like this: 
+```
+# define an optimizer and run it.
+optimizer = respyte_optimizer(objective)
+optimizer.run(verbose=True)
+```
+
+#### (5) `procedure.py`
+It defines a main function called `resp` which runs single-stage or two-stage fitting  procedure. 
+
+```
+#'example 3. analytic solution  of two-stg-fit
+model_type = 'point_charge'
+parameter_types = {'charge': 'connectivity'}
 penalty =  {'type': 'L1', 'a': 0.001, 'b': 0.1}
-resp(molecules, symmetry='all', model='point_charge', penalty=penalty, procedure=1)
+resp(molecules, model_type, parameter_types, penalty=penalty, procedure=2)
+```
+or for the fuzzy charge model, 
+```
+# example 5. numerical  solution of fuzzy charge single-stg-fit
+model_type = 'fuzzy_charge'
+parameter_types = {'charge': 'connectivity', 'alpha': 'symbol'}
+q_core_type = 'valency'
+alpha0 = 3
+penalty =  {'type': 'L1', 'a': 0.001, 'b': 0.1, 'c':0.1}
+resp(molecules, model_type, parameter_types, q_core_type=q_core_type, alpha0=alpha0, penalty=penalty, procedure=2)
 ```
 
 #### Copyright

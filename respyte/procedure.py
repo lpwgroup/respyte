@@ -5,46 +5,45 @@ from respyte.molecules import respyte_molecules
 from respyte.objective import respyte_objective
 from respyte.optimizer import respyte_optimizer
 
-def single_stage_procedure(molecules, model, penalty, symmetrize='all', prev_objective=None, fix_polar_charges=False, verbose=True):
-    assert isinstance(molecules,  respyte_molecules)
-    #  create a new molecules object,  re-assign atom ids
-    new_molecules = copy.deepcopy(molecules)
-    new_molecules.set_atom_id(symmetrize)
-    # fix polar charges 
-    if fix_polar_charges:
-        if prev_objective: 
-            new_molecules.fix_polar_charges_from_previous_step(prev_objective)
-        else:
-            raise RuntimeError('objective object should be provided to fix polar charges!')
-
-    # define an objective function
-    objective = respyte_objective(new_molecules, model=model)
+def single_stage_procedure(molecules, model_type, parameter_types, q_core_type, alpha0,
+                            penalty, fix_polar_charges=False, prev_objective=None, verbose=True): 
+    
+    # create objective and add model and penalty function
+    objective = respyte_objective(molecules)
+    objective.add_model(model_type, parameter_types, q_core_type, alpha0, fix_polar_charges, prev_objective)
     objective.add_penalty(penalty)
 
     # define an optimizer and run  the optimizer
     optimizer = respyte_optimizer(objective)
     optimizer.run(verbose=verbose)
-    return  optimizer.objective
 
-def resp(molecules, symmetry, model, penalty, procedure=1, output_path=None):
+    return  optimizer.objective
     
+penalty_default = {'ptype':'L1', 'a':0.001, 'b':0.1, 'c':0.1}
+
+def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, penalty=penalty_default,
+         procedure=1, output_path=None, verbose=True):
     if procedure == 2: 
         print('\n\033[1mRunning two-stage fit\033[0m')
         print('1st stage: ')
-        if symmetry !=  'all':
-            print(f' * You set symmetry={symmetry} for two-stage fit!')
-            print('   For the use of canonical two-stage fitting procedure, it will neglect your choice of symmetry.')
-        # first stage
-        objective1 =  single_stage_procedure(molecules, model, penalty, symmetrize='polar', prev_objective=None, fix_polar_charges=False, verbose=True)
+        mod_parameter_types = copy.deepcopy(parameter_types)
+        mod_parameter_types['charge'] = 'relaxed_connectivity'
+        objective1 = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type,
+                                            alpha0=alpha0, penalty=penalty, verbose=verbose)
         # second stage
         print('\n2nd stage: ')
-        new_penalty =  copy.deepcopy(penalty)
-        new_penalty['a'] = penalty['a'] *  2
-        objective = single_stage_procedure(molecules, model, new_penalty, symmetrize='all', prev_objective=objective1, fix_polar_charges=True, verbose=True)
+        mod_parameter_types['charge'] = 'connectivity'
+        mod_penalty = copy.deepcopy(penalty)
+        mod_penalty['a'] *= 2
+        objective = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type, 
+                                            alpha0=alpha0, penalty=mod_penalty, fix_polar_charges=True, 
+                                            prev_objective=objective1, verbose=verbose)
     elif procedure == 1: 
         print('\033[1mRunning single-stage fit\033[0m')
-        objective = single_stage_procedure(molecules, model, penalty, symmetrize=symmetry, prev_objective=None,  fix_polar_charges=False, verbose=True)
-    
+        objective = single_stage_procedure(molecules, model_type, parameter_types, q_core_type=q_core_type,
+                                            alpha0=alpha0, penalty=penalty, verbose=verbose)
+
+
     if  output_path:
         output_path = os.path.join(output_path, 'resp_outout')
         if os.path.isdir(output_path):
@@ -52,38 +51,40 @@ def resp(molecules, symmetry, model, penalty, procedure=1, output_path=None):
         os.mkdir(output_path)
         write_output(objective, output_path)
     return objective
-
+ 
 try:
     import openeye.oechem as oechem
 except ImportError:
     warn('The Openeye module not imported. Unable to write output mol2 file.')
 
-def write_output(objective, output_path):
-    if 'openeye.oechem' not in sys.modules:
-        print('Can not generate mol2 file without using Openeye toolkit yet.')
-    else:
-        if objective.model in ['point_charge', 'point_charge_numerical']:
-            for molecule in objective.molecules.mols:
-                abspath = molecule.abspath  
-                name =  os. path. splitext(os.path.basename(abspath))[0]
-                outfile =  os.path.join(output_path, '%s.mol2' %name)  
-                oemol = ReadOEMolFromFile(abspath)
-                qpot = []
-                for atomid in molecule.atomids:  
-                    qidx = [i[0]  for i in objective.val_info].index(atomid)
-                    qpot.append(objective.vals[qidx])
-        
-                for idx, atom in enumerate(oemol.GetAtoms()):
-                    atom.SetPartialCharge(qpot[idx])
+def write_output(objective, output_path):    
+    if 'openeye.oechem' in sys.modules and objective.model.model_type in ['point_charge', 'point_charge_numerical']:
+        for molecule in objective.molecules.mols:
+            abspath = molecule.abspath  
+            name =  os. path. splitext(os.path.basename(abspath))[0]
+            outfile =  os.path.join(output_path, '%s.mol2' %name)  
+            oemol = ReadOEMolFromFile(abspath)
+            qpot = objective.return_current_values(molecule, 'charge')
 
-                ofs = oechem.oemolostream()
-                ofs.SetFormat(oechem.OEFormat_MOL2)
-                ofs.open(outfile)
-                oechem.OEWriteMolecule(ofs, oemol)
-        else:  
-            print('Currently  only support point charge model.')
-            print('Exits without writing output files.')
-        
+            for idx, atom in enumerate(oemol.GetAtoms()):
+                atom.SetPartialCharge(qpot[idx])
+
+            ofs = oechem.oemolostream()
+            ofs.SetFormat(oechem.OEFormat_MOL2)
+            ofs.open(outfile)
+            oechem.OEWriteMolecule(ofs, oemol)
+    else:  
+        print('openeye toolkit is not available or the charge model is not point charge model.\n')
+        print('writing output into txt file intead:)')
+        for molecule in objective.molecules.mols: 
+            abspath = molecule.abspath  
+            name =  os.path.splitext(os.path.basename(abspath))[0]
+            outfile =  os.path.join(output_path, '%s.txt' %name)  
+            output = objective.print_vals_of_single_molecule(molecule,verbose=False)
+            with open(outfile, 'w') as outf: 
+                for line in output: 
+                    outf.write('%s\n'%line)
+            outf.close()
 
 def ReadOEMolFromFile(filename):
     '''

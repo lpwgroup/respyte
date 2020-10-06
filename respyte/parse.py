@@ -20,7 +20,7 @@ for residue in amberAminoAcidUnits:
         amberResidueChargeDict[residue] = -1
     else:
         amberResidueChargeDict[residue] = 0
-
+        
 class Input:
     def __init__(self, inputFile=None):
         if inputFile is None:
@@ -28,15 +28,18 @@ class Input:
             self.fixed_atomic_charge = {}
             self.resChargeDict = {}
             self.equiv_atoms = []
-            self.model = 'point_charge'
-            self.penalty = {'type': 'L1', 'a': 0.001, 'b': 0.1}
+            self.model_type = 'point_charge'
+            self.parameter_type = {'charge', 'connectivity'}
+            self.q_core_type = None
+            self.alpha0 = None
+            self.penalty = {'ptype': 'L1', 'a': 0.001, 'b': 0.1}
             self.procedure  = 1
             self.gridinfo = None 
             # self.gridspace = 0.7 
             # self.normalization = False 
-            self.symmetry  = 'all'
         else:
             self.readinp(inputFile) 
+
     def readinp(self, inputfile):
         print(f'\n\033[1mParsing input file, {os.path.abspath(inputfile)}: \033[0m')
         
@@ -62,6 +65,7 @@ class Input:
                 else: 
                     net_chg = 0
                 mols[mol]['net_charge'] = net_chg
+        self.mols = mols
 
         # 3. residue charge setting
         resChargeDict = copy.deepcopy(amberResidueChargeDict)
@@ -72,6 +76,7 @@ class Input:
             residue_charge = inp['residue_charge']
             print(f'  * residue_charge: {residue_charge}')
             resChargeDict.update(residue_charge)
+        self.resChargeDict = resChargeDict
 
         # 4. fixed atomic charges
         if 'fixed_atomic_charge' in inp:
@@ -86,11 +91,13 @@ class Input:
         else:
             print(f'  * fixed_atomic_charge: None')
             fixed_atomic_charge = {}
-            
-        # 5. equivalent atoms 
+        self.fixed_atomic_charge = fixed_atomic_charge
+
+        # 5. user specified equivalent atoms 
         if 'equiv_atoms' in inp:
             #print('Read "equiv_atoms" setting(user-defined list of equivalent atoms).')
-            for group, group_info in inp['equiv_atoms'].items():
+            for group, group_info in inp['equiv_atoms'].items():                
+                assert 'molname' in group_info, f'molname not specified in {group}'
                 assert 'atomname' in group_info, f'atomname not specified in {group}'
                 assert 'resname' in group_info, f'resname not specified in {group}'
             equiv_atoms_inp = inp['equiv_atoms']
@@ -99,83 +106,83 @@ class Input:
 
         newequiv_atoms = []
         for i in equiv_atoms_inp:
+            molnames = equiv_atoms_inp[i]['molname']
+            if isinstance(molnames, str): 
+                molnames = [molnames]
             atomnames = equiv_atoms_inp[i]['atomname']
             if isinstance(atomnames, str): 
                 atomnames = [atomnames]
             resnames = equiv_atoms_inp[i]['resname']
             if isinstance(resnames, str):
                 resname = [resnames]
-            newequiv_atoms.append([atomnames, resnames])
+            newequiv_atoms.append([molnames, atomnames, resnames])
         equiv_atoms = newequiv_atoms
         print(f'  * equiv_atoms: {equiv_atoms}')
-        
-        # 6. symmetry
-        if 'symmetry' in inp:
-            assert inp['symmetry'] in ['all', 'polar', 'nosym'], 'symmetry should be either all, polar or nosym'
-            symmetry = inp['symmetry']
-            print(f'  * symmetry: {symmetry}')
-        else:
-            print(f'  * symmetry: all (default)')
-            symmetry = 'all'        
+        self.equiv_atoms = equiv_atoms
 
-        # 7. restraint/ grid selection/ normalization/
-        # if 'restraint' in inp:
-        #     restraintinfo = inp['restraint']
-        # else:
-        #     raise KeyError('"restraint" key not provided!')
-        if 'model'  in  inp: 
-            model = inp['model']
-            print(f'  * model: {model}') 
+        # 6. charge model type
+        if 'model_type'  in  inp: 
+            model_type = inp['model_type']
+            print(f'  * model_type: {model_type}') 
         else:
-            model = 'point_charge'
-            print(f'  * model: {model} (default)') 
+            model_type = 'point_charge'
+            print(f'  * model_type: {model_type} (default)') 
+        self.model_type = model_type
 
+        # 7. parameter type
+        if 'parameter_types'  in  inp: 
+            parameter_types = inp['parameter_types']
+            print(f'  * parameter_types: {parameter_types}') 
+        else:
+            parameter_types = {'charge': 'connectivity'}
+            print(f'  * parameter_types: {parameter_types} (default)') 
+        self.parameter_types = parameter_types
+
+        # 8. q_core_type
+        if 'q_core_type'  in  inp: 
+            q_core_type = inp['q_core_type']
+            print(f'  * q_core_type: {q_core_type}') 
+        else:
+            q_core_type = None
+            print(f'  * q_core_type: {q_core_type} (default)') 
+        self.q_core_type = q_core_type
+
+        # 9. alpha0 
+        if 'alpha0'  in  inp: 
+            alpha0 = inp['alpha0']
+            print(f'  * alpha0: {alpha0}') 
+        else:
+            alpha0 = None
+            print(f'  * alpha0: {alpha0} (default)') 
+        self.alpha0 = alpha0
+
+        # 10. ptype, a, b, c
         if 'penalty' in  inp:
             penalty = inp['penalty']
             print(f'  * penalty: {penalty}') 
         else:
-            penalty = {'type': 'L1', 'a': 0.001, 'b': 0.1}
+            penalty = {'ptype': 'L1', 'a': 0.001, 'b': 0.1}
             print(f'  * penalty: {penalty} (default)')
+        self.penalty = penalty
 
+        # 11. procedure
         if 'procedure' in inp:
+            assert isinstance(inp['procedure'], int)
             procedure = inp['procedure']
             print(f'  * procedure: {procedure}')
         else: 
             procedure = 1
             print(f'  * procedure: {procedure} (default)')
+        self.procedure = procedure
 
+        # 12. boundary select
         if 'boundary_select' in inp:
             gridinfo = inp['boundary_select']
             print(f'  * gridinfo: {gridinfo}') 
         else:
             gridinfo = None
             print(f'  * gridinfo: {gridinfo} (default)') 
-        # if 'grid_space' in inp:
-        #     space = inp['grid_space']
-        #     print(f'  * grid_space: {space}')
-        # else:
-        #     print(f'  * grid_space: 0.7 (default)')
-        #     space = 0.7
-
-        # if 'normalization' in inp:
-        #     assert isinstance(inp['normalization'], bool), 'value for normalization should be True or False'
-        #     normalization = inp['normalization']
-        #     print(f'  * normalization: {normalization}')
-        # else:
-        #     print(f'  * normalization: False (default)')
-        #     normalization = False
-
-        self.mols                = mols
-        self.fixed_atomic_charge = fixed_atomic_charge
-        self.resChargeDict       = resChargeDict
-        self.equiv_atoms         = equiv_atoms
-        self.model               = model
-        self.penalty             = penalty  
-        self.procedure           = procedure
-        self.gridinfo            = gridinfo
-        # self.gridspace           = space
-        # self.normalization       = normalization
-        self.symmetry            = symmetry
+        self.gridinfo = gridinfo
 
 def main():
     inp = Input()

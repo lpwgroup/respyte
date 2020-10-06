@@ -47,18 +47,32 @@ boundary_select:
 # 
 # equiv_atoms : # speify equivalent atoms 
 #     group1:
+#         molname: [mol1, mol2, mol3]
 #         atomname: N
 #         resname: [LYN, TRP, PRO, GLY, SER, MET, PHE, CYS, ILE,ASN, VAL, HIE, ASH, HID, LEU, ALA, GLN, TYR, THR, GLH]
 
-model :  point_charge # point_charge or fuzzy_charge
+# model_type: specify charge model
+model_type :  fuzzy_charge # point_charge or fuzzy_charge
 
-#  penalty: penalty type. specify c for smearing parameter for fuzzy charge model, unless default c=0.1 will be applied
-penalty :  
-    type : L1 # L1: hyperbolic penalty function
-    a : 0.001
-    b : 0.1 
+# parameter_types: specify equivalence level for each parameter type
+# available equivalence levels: connectivity, relaxed_connectivity, nosym,
+#                               symbol and symbol2(w/ a separation of polar H and nonpolar H)
+parameter_types:   
+    charge : connectivity
+    alpha  : symbol
 
-procedure : 2 #  specify whether  to use single-stage or two-stage fitting
+# q_core_type, alpha0: extra settings for fuzzy charge model
+q_core_type : valency # available types: nuclear_charge, valency, integer or float
+alpha0 : 3              # a prefactor of alpha value 
 
-symmetry : all # all, polar, nosym
+# penalty: settings for penalty function 
+penalty : 
+    ptype : L1 # L1: hyperbolic penalty function for charges
+    a : 0.001  # charge restraint weight 
+    b : 0.1    # tightness of charge restraints
+    c : 0.001    # alpha restraint weight 
+
+# procedure: specify whether  to use single-stage or two-stage fitting
+procedure : 2  # 1 or 2
+
 

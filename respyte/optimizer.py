@@ -2,6 +2,7 @@ import numpy as np
 import scipy as sci
 from respyte.objective import respyte_objective
 
+
 class  respyte_optimizer:
     """ Respyte optimizer class.  
 
@@ -42,23 +43,11 @@ class  respyte_optimizer:
             if ndq < threshold: 
                 converged = True
                 print('\033[1m Converged!\033[0m')
-                print('{:>6s} {:>9s} {:>9s} {:>9s} {:>15s} {:>8s} {:8s}'.format('atomid', 'molecule', 'atomname', 'resname', 'model', 'vartype','value'))
-                for val, val_info in zip(self.objective.vals, self.objective.val_info):
-                    atomid, model, vartype =  val_info
-                    if atomid in list(self.objective.molecules.atomid_dict.keys()):
-                        atomname = self.objective.molecules.atomid_dict[atomid][0]['atomname']
-                        resname  = self.objective.molecules.atomid_dict[atomid][0]['resname']
-                        molname = self.objective.molecules.atomid_dict[atomid][0]['molname']
-                    else: 
-                        atomname = 'None'
-                        resname  = 'None'
-                        molname = 'None'
-                    print('{:>6s} {:>9s} {:>9s} {:>9s} {:>15s} {:>8s} {:>8.4f}'.format(str(atomid), molname, atomname,resname, model, vartype,val))
+                self.objective.print_vals(verbose=True)
             else: 
                 if verbose: 
-                    print(' Iter {:d}. norm(dq): {:.2e}'.format(iteration, ndq))  
+                    print(' Iter {:d}. norm(dq): {:.2e} X2: {:.2e}'.format(iteration, ndq, Obj['X']))  
                 iteration += 1
-                for idx, val in enumerate(self.objective.vals):
-                    self.objective.vals[idx] = val + dq[idx]
-    
+                for idx, val in enumerate(self.objective.parms):
+                    self.objective.parms[idx] = val + dq[idx]
         return self.objective

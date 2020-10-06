@@ -1,6 +1,8 @@
+import os
 import numpy as np
 import copy
 from collections import defaultdict, OrderedDict
+from warnings import warn
 import rdkit.Chem as rdchem
 
 from respyte.fbmolecule import * 
@@ -28,15 +30,16 @@ class respyte_molecule:
         a list of symmetry classes of atoms 
     polar_atom_indices: list
         a list of polar atom indices.
-    atomids: list
-        a list of atom ids.
-        (id = unique number assigned to each unique atom for informing 
-            which atoms are equivalent during the charge fitting procedure)
-    atomid_dict: dict
-        a dictionary containing information of atom ids.
+    polar_hydrogen_indices: list
+        a list of polar hydrogen atom indices.
+    atom_equiv : dict
+        a dictionary, whose keys are equivalence level('nosym', 'connectivity', 'relaxed_connectivity', 'symbol', 'symbol2')
+        and the values are dictionarys, having 'equivs', a list of equiv values for the corresponding equivalence level, 
+        and 'info', a dictionary contains definition of each equiv value. 
+        note that term, 'equiv' is the replacement of 'atomid'
     input_equiv_atoms: list 
         a list of equivalent atoms user manually specify to force the same charge on the selected atoms
-        [[atomname1, atomname2, ...], [resname1, resname2, ...]] 
+        [[molname1, molname2, ...],[atomname1, atomname2, ...], [resname1, resname2, ...]] 
     fixed_charges: list
         a list of [[atom indices], sum of charges of the atoms].
     gridxyz : list
@@ -47,14 +50,20 @@ class respyte_molecule:
         a list of electric field values.
     Methods
     -------
+    add_input_equiv_atoms(input_equiv_atoms, update=True):
+        add user-specified equivalent atom list and update atom_equiv if update==True.
     read_coord_file(coord_fnm):
-        read coordinate file and store attributes.
-    reset_atom_id:
-        reset atom ids using symmetry classes of atoms.
-    update_atomid_dict:
-        update atomid_dict based on the current atomids.
-    set_atom_id(symmetry='polar'): 
-        set atom ids and update atomids, atomid_dict.
+        read coordinate file and add attributes.
+    get_atom_equiv(reset=False):
+        create atom_equiv dictionary, if reset==True, remove information of user-specified symmetry and restore atom_equiv.
+    reset_atom_equiv:
+        remove user-specified symmetry and restore atom_equiv.
+    get_atom_equiv_info(equivs):
+        using the input list of equiv values, generate a dictionary of equiv value definitions.
+    update_atom_equiv_info(equivs):
+        apply input_equiv_atoms(user-specified equivalent atom list) and regenerate equivs and info.
+    convert_index_to_equiv(indices, equiv_level):
+        return a list(or single int) of equiv values assigned to input indices in a given equivalence level.
     set_fragment_charge(list_of_atom_idx, charge): 
         set net charge of the fragment fixing during the fitting.
     set_residue_charge_by_resname(residue_name, charge):
@@ -64,7 +73,7 @@ class respyte_molecule:
     read_espf(espf_fnm, settings):
         read espf file and store information.
     GetAtoms:
-        function for looping over atoms 
+        return list of atoms
     """
     def __init__(self, molecule_name= None, coord_fnm=None, espf_fnm=None,  settings = None, input_equiv_atoms = []):
         '''
@@ -78,16 +87,24 @@ class respyte_molecule:
             settings : dict
                 a dictionary containng grid selection settings 
                 segttings =  {'mol': fbmolecule object, 'inner': inner boundary(float), 'outer': outer boundary(float), 'radiiType': radii type(str)}
+            input_equiv_atoms: list 
+                a list of equivalent atoms user manually specify to force the same charge on the selected atoms
+                [[[molname1, molname2, ...],[atomname1, atomname2, ...], [resname1, resname2, ...]] , ...]
         '''
-        self.name  = molecule_name 
-        self.input_equiv_atoms = input_equiv_atoms # should  be located before read  coord file
+        if molecule_name is None: 
+            warn('molecule name is not provided. Use default molecule name, MOL. It may mess up atom equivalence between different molecules!')
+            molecule_name = 'MOL'
+        self.name = molecule_name
+        
+        self.add_input_equiv_atoms(input_equiv_atoms, update=False)
 
         if coord_fnm == None: 
             self.abspath = None
             self.fbmol = FBMolecule()
             self.polar_atom_indices = []
-            self.atomids = []
-            self.atomid_dict = {}
+            self.polar_hydrogen_indices = []
+            self.symmetryClass = []
+            self.atom_equiv = {}
         else: 
             self.read_coord_file(coord_fnm)
 
@@ -99,124 +116,158 @@ class respyte_molecule:
             self.efval   = []
         else:
             self.read_espf(espf_fnm, settings)
-    
-    def add_input_equiv_atoms(self, input_equiv_atoms, reset=True): ##
+
+    def add_input_equiv_atoms(self, input_equiv_atoms, update=True):
         '''
         add a list of equivalent atoms user manually specify to force the same charge on the selected atoms
 
                 Parameters:
-                        input_equiv_atoms (list): list of equivalent atoms
+                        input_equiv_atoms (list): a list of equivalent atoms user manually specify to force the same charge on the selected atoms
         ''' 
         assert isinstance(input_equiv_atoms, list), 'input_equiv_atoms should be a list'
         for equiv_atoms in input_equiv_atoms: 
-            assert len(equiv_atoms) == 2
+            assert len(equiv_atoms) == 3, 'each element of input_equiv_atoms should be like [[molname1, molname2, ...],[atomname1, atomname2, ...], [resname1, resname2, ...]]'    
         self.input_equiv_atoms = input_equiv_atoms
-
-        self.reset_atom_id()
-        
-    def read_coord_file(self, coord_fnm):    
+        if update: 
+            self.get_atom_equiv()
+    
+    def read_coord_file(self, coord_fnm):
         '''
         read coordinate file and store attributes
 
                 Parameters:
                         coord_fnm : mol2 or pdb file name
         ''' 
-        # print(f'## coord_fnm: {coord_fnm}')
         self.abspath = os.path.abspath(coord_fnm)
+        # using forcebalance molecule object to store basic information of the input conformer.
         fbmol = FBMolecule(coord_fnm)
-        fbmol.add_vdw_radii('bondi') # store vdw radii for fuzzy charge
-        fbmol.xyzs = np.array(fbmol.xyzs) / bohr2Ang # switch unit to Bohr
+        fbmol.add_vdw_radii('bondi') # store vdw radii (Angstrom) for fuzzy charge
         self.fbmol = fbmol
 
-        # using rdkit to find polar atoms
-        self.polar_atom_indices = get_polar_atom_indices(coord_fnm) 
+        # using rdkit tools, get atomic properties (## not sure if i want to keep them or not)
+        self.polar_atom_indices, self.polar_hydrogen_indices, self.symmetryClass = get_atomic_properties(coord_fnm)
 
-        # storing symmetryclass instead of rdkit molecule object?
-        self.symmetryClass = get_symmetry_class(coord_fnm)
-        # print(f'## symmetryClass: {self.symmetryClass}')
-        self.reset_atom_id()
+        # create atom_equiv dictionary from the informations 
+        self.get_atom_equiv()
 
-    def reset_atom_id(self):
+    def get_atom_equiv(self, reset=False):
         '''
-        reset atom ids using symmetry classes of atoms.
+        generate atom_equiv dictionary, which contains symmetry information
+
+                Parameters:
+                        reset (bool): if True, will remove user-forced symmetry and reset self.atom_equiv using canonical symmetry
         ''' 
-
-        sym_set = list(set(self.symmetryClass))
-        sym_set.sort()
-        # print(f'## sym_set: {sym_set}')
-        atomids = np.zeros((len(self.symmetryClass)),dtype=int)
-        for sym in sym_set:
-            atomid = int(sym_set.index(sym))
-            indices = [i for i, x in enumerate(self.symmetryClass) if x == sym]
-            for i in indices:
-                atomids[i] = atomid
-        self.atomids = list(atomids)
-        # print(f'## atomids: {self.atomids}')
-        self.update_atomid_dict()
-
-        # if self.input_equiv_atoms is not empty, force user-specified symmetry on selected atoms
-        if len(self.input_equiv_atoms) !=0:
-            new_atomids =  copy.deepcopy(self.atomids)
-            for equiv_atoms in self.input_equiv_atoms: 
-                atomnames, resnames  = equiv_atoms
-                equiv_ids = []
-                for atomid, lst_of_info in self.atomid_dict.items():
-                    match = False
-                    for info in lst_of_info:
-                        if info['resname'] in resnames and info['atomname'] in atomnames:
-                            match = True
-                            break
-                    if match:
-                        equiv_ids.append(atomid)
-                new_id = min(list(equiv_ids))
-                new_atomids = [new_id if i in equiv_ids else i for i in new_atomids]
-
-            self.atomids  =  new_atomids
-            self.update_atomid_dict()
-        
-    def update_atomid_dict(self):
-        '''
-        update atomid_dict based on the current atomids.
-        ''' 
-        atomid_dict = defaultdict(list)
-        for atomid, resname, atomname, elem, vdw_radius in zip(self.atomids, self.fbmol.resname, self.fbmol.atomname, self.fbmol.elem, self.fbmol.vdwradii):
-            info = {'molname':self.name, 'resname': resname, 'atomname': atomname, 'elem':elem, 'vdw_radius': vdw_radius / bohr2Ang}
-            if info not in atomid_dict[atomid]:
-                atomid_dict[atomid].append(info)   
-        self.atomid_dict =  atomid_dict
-
-    def set_atom_id(self, symmetry='polar'):
-        '''
-        set atom ids and update atomids, atomid_dict.
-
-                Parameters: 
-                        symmetry (str): "all" , "polar" or "nosym"
-                        note that when you set symmetry "polar" , or "nosym" part (or all) of 
-                        the equivalent atoms you set in  the input file will be washed  out. 
-        ''' 
-        self.reset_atom_id() 
-        if symmetry == 'nosym':
-            new_atomids = list(range(len(self.atomids)))
-
-        elif symmetry == 'polar':
-            new_atomids = [i if idx in  self.polar_atom_indices else -1 for idx, i in enumerate(self.atomids)]
-            nonpolar_new_id = np.amax(new_atomids)  + 1
-            for idx, atomid in enumerate(new_atomids):
-                if atomid < 0:
-                    new_atomids[idx] = nonpolar_new_id
-                    nonpolar_new_id += 1
-        elif symmetry == 'all':
-            new_atomids = self.atomids
-
+        atom_equiv = {}
+        # 1. no symmetry, 'nosym'
+        nosym_equivs = list(range(len(self.fbmol.elem)))
+        if reset: 
+            info = self.get_atom_equiv_info(nosym_equivs)
+            atom_equiv['nosym'] = {'equivs': nosym_equivs, 'info': info}
         else: 
-            raise NotImplementedError(f'symmetry={symmetry} is not implemented. "nosym", "polar" and "all" are available. ')
-        self.atomids = new_atomids
-        self.update_atomid_dict()
+            updated_nosym_equivs, updated_info = self.update_atom_equiv_info(nosym_equivs)
+            atom_equiv['nosym'] = {'equivs': updated_nosym_equivs, 'info': updated_info}
+        
+        # 2. canonical symmetry, 'connectivity'
+        sym_set= list(set(self.symmetryClass))
+        sym_set.sort()
+        connectivity_equivs = np.zeros((len(self.symmetryClass)), dtype=int)
+        for sym in sym_set:
+            equiv = int(sym_set.index(sym))
+            indices = [i for i, x in enumerate(self.symmetryClass) if x== sym]
+            for idx in indices: 
+                connectivity_equivs[idx] = equiv
+        connectivity_equivs = list(connectivity_equivs)
+        if reset : 
+            info = self.get_atom_equiv_info(connectivity_equivs)
+            atom_equiv['connectivity'] = {'equivs': connectivity_equivs, 'info': info}
+        else: 
+            updated_connectivity_equivs, updated_info = self.update_atom_equiv_info(connectivity_equivs)
+            atom_equiv['connectivity'] = {'equivs': updated_connectivity_equivs, 'info': updated_info}
+
+        # 3. relaxed symmetry (force symmetry on polar atoms only), 'relaxed_connectivity'
+        relaxed_equivs = [i if idx in self.polar_atom_indices else -1 for idx, i in enumerate(connectivity_equivs)]
+        nonpolar_new_equiv = np.amax(relaxed_equivs) + 1 
+        for idx, equiv in enumerate(relaxed_equivs):
+            if equiv < 0: 
+                relaxed_equivs[idx] = nonpolar_new_equiv
+                nonpolar_new_equiv += 1
+        if reset : 
+            info = self.get_atom_equiv_info(relaxed_equivs)
+            atom_equiv['relaxed_connectivity'] = {'equivs': relaxed_equivs, 'info': info}
+        else: 
+            updated_relaxed_equivs, updated_info = self.update_atom_equiv_info(relaxed_equivs)
+            atom_equiv['relaxed_connectivity'] = {'equivs': updated_relaxed_equivs, 'info': updated_info}
+        
+        # 4. atomic numbers, 'symbol'
+        symbol_equivs = []
+        for elem in self.fbmol.elem:
+            atomic_number = list(PeriodicTable.keys()).index(elem) + 1 
+            symbol_equivs.append(atomic_number)
+        info = self.get_atom_equiv_info(symbol_equivs)
+        atom_equiv['symbol'] = {'equivs': symbol_equivs, 'info': info}
+         
+        # 5. atomic numbers with -1 for polar hydrogen, 'symbol2'
+        symbol2_equivs = copy.deepcopy(symbol_equivs)
+        for idx in self.polar_hydrogen_indices: 
+            symbol2_equivs[idx] = -1
+        info = self.get_atom_equiv_info(symbol2_equivs)
+        atom_equiv['symbol2'] = {'equivs': symbol2_equivs, 'info': info}
+
+        self.atom_equiv = atom_equiv
+
+    def reset_atom_equiv(self):
+        '''
+        remove user-specified symmetry and reset self.atom_equiv using canonical symmetry
+        '''
+        self.get_atom_equiv(reset=True)
+    
+    def get_atom_equiv_info(self, equivs):
+        '''
+        using the input list of equiv values, generate a dictionary of equiv value definitions
+        '''
+        atom_equiv_info = defaultdict(list)
+        for equiv, resname, atomname, elem, vdw_radius in zip(equivs, self.fbmol.resname, self.fbmol.atomname, self.fbmol.elem, self.fbmol.vdwradii):
+            info = {'molname':self.name, 'resname': resname, 'atomname': atomname, 'elem':elem, 'vdw_radius': vdw_radius}
+            if info not in atom_equiv_info[equiv]:
+                atom_equiv_info[equiv].append(info)
+        return atom_equiv_info
+
+    def update_atom_equiv_info(self, equivs):
+        '''
+        apply self.input_equiv_atoms(user-specified equivalent atom list) and return new equivs and info
+        '''
+        atom_equiv_info = self.get_atom_equiv_info(equivs)
+        new_equivs = copy.deepcopy(equivs)
+        for equiv_atoms in self.input_equiv_atoms: 
+            molnames, atomnames, resnames = equiv_atoms 
+            same_equivs = []
+            for equiv, lst_of_info in atom_equiv_info.items():
+                match = False
+                for info in lst_of_info:
+                    if info['molname'] in molnames and info['resname'] in resnames and info['atomname'] in atomnames:
+                        match = True
+                        break
+                if match: 
+                    same_equivs.append(equiv)
+            if len(same_equivs) > 0:
+                new_equiv = min(list(same_equivs))
+                new_equivs = [new_equiv if i in same_equivs else i for i in new_equivs]
+        new_atom_equiv_info = self.get_atom_equiv_info(new_equivs)      
+        return new_equivs, new_atom_equiv_info
+
+    def convert_index_to_equiv(self, indices, equiv_level):
+        '''
+        return a list(or single int) of equiv values assigned to input indices in a given equivalence level
+        '''
+        if isinstance(indices, list):
+            equivs_converted = [equiv for idx, equiv in enumerate(self.atom_equiv[equiv_level]['equivs']) if idx in indices]
+        elif isinstance(indices, int): 
+            equivs_converted = self.atom_equiv[equiv_level]['equivs'][indices]
+        return equivs_converted
 
     def set_fragment_charge(self, list_of_atom_idx, charge):
         '''
         set net charge of the fragment being fixed during the fitting.
-
                 Parameters:
                         list_of_atom_idx (list): a list of atom indices included in the fragment
                         charge (float): net  charge of the fragment
@@ -225,7 +276,9 @@ class respyte_molecule:
         assert all(isinstance(atom_idx, int) for atom_idx in list_of_atom_idx), f'Element type of input list should be integer'
         assert len(list_of_atom_idx) == len(set(list_of_atom_idx)), f'Duplicates in input list.'
         assert isinstance(charge, (int, float)), f'Net charge should be a number. wrong input charge: {charge}'
-        self.fixed_charges.append([list_of_atom_idx, charge])
+        list_of_atom_idx.sort()
+        if [list_of_atom_idx, charge] not in self.fixed_charges:
+            self.fixed_charges.append([list_of_atom_idx, charge])
 
     def set_residue_charge_by_resname(self, residue_name, charge):
         '''
@@ -237,11 +290,13 @@ class respyte_molecule:
         ''' 
         assert isinstance(charge, (int, float)), f'Net charge should be a number. wrong input charge: {charge}'
         list_of_atom_idx = []
-        for idx, atom in enumerate(self.GetAtoms()):
+        for  atom in self.GetAtoms():
             if atom.resname == residue_name:
-                list_of_atom_idx.append(idx)
-        self.fixed_charges.append([list_of_atom_idx, charge])
-
+                list_of_atom_idx.append(atom.idx)
+        list_of_atom_idx.sort()
+        if [list_of_atom_idx, charge] not in self.fixed_charges:
+            self.fixed_charges.append([list_of_atom_idx, charge])
+        
     def set_net_charge(self, charge):
         '''
         set net charge of the molecule.
@@ -251,8 +306,9 @@ class respyte_molecule:
         ''' 
         assert isinstance(charge, (int, float)), f'Net charge should be a number. wrong input charge: {charge}'
         list_of_atom_idx = list(range(len(self.GetAtoms())))
-        self.fixed_charges.append([list_of_atom_idx, charge])
-
+        list_of_atom_idx.sort()
+        if [list_of_atom_idx, charge] not in self.fixed_charges:
+            self.fixed_charges.append([list_of_atom_idx, charge])
 
     def read_espf(self,espf_fnm, settings):
         '''
@@ -288,15 +344,15 @@ class respyte_molecule:
             else: 
                 for i in selectedPtsIdx:
                     selectedLines.append(int(i*2))
-                    selectedLines.append(int(i*2+1))                    
-                
+                    selectedLines.append(int(i*2+1))    
+
         with open(espf_fnm, 'r') as espff:
             for i, line in enumerate(espff):
                 if  i in selectedLines:
                     fields = line.strip().split()
                     numbers = [float(field) for field in fields]
                     if (len(numbers)==4):
-                        xyz = [x/bohr2Ang for x in numbers[0:3]]
+                        xyz = [x for x in numbers[0:3]] # unit = Angstrom
                         gridxyz.append(xyz)
                         espval.append(numbers[3])
                     elif (len(numbers)==3):
@@ -307,12 +363,13 @@ class respyte_molecule:
 
     def GetAtoms(self):
         atoms = []
-        for idx, atomid in enumerate(self.atomids):
-            atom = respyte_atom(self.fbmol, idx, atomid)
+        for idx, elem in enumerate(self.fbmol.elem):
+            atom = respyte_atom(self.fbmol, self.atom_equiv, idx)
             atoms.append(atom)
         return atoms
 
-class respyte_atom:
+
+class respyte_atom: 
     """ An atom class in respyte package. 
 
     ...
@@ -321,7 +378,7 @@ class respyte_atom:
     idx : int
         index of atom.
     xyz : list
-        list of xyz  coordinates in Bohr.
+        list of xyz  coordinates in Angstrom.
     atomname : str
         atom name given by input coordinate file.
     resname: str
@@ -330,17 +387,26 @@ class respyte_atom:
         residue number
     elem: str
         atomic symbol
-    id: int
-        atom id
+    atom_equiv: dict
+        a dictionary, whose keys are equivalence level('nosym', 'connectivity', 'relaxed_connectivity', 'symbol', 'symbol2')
+        and the values are the equiv value assigned to the atom        
     """
-    def __init__(self, fbmol, idx, atomid):
+    def __init__(self, fbmol, atom_equiv, idx):
         self.idx = idx
         self.xyz = fbmol.xyzs[0][idx]
         self.atomname = fbmol.atomname[idx]
         self.resname  = fbmol.resname[idx]
         self.resid    = fbmol.resid[idx]
         self.elem     = fbmol.elem[idx]
-        self.id = atomid
+        self.atom_equiv = self.get_equiv(atom_equiv, idx)    
+
+    def get_equiv(self, atom_equiv, idx):
+        Answer = {}
+        for equiv_level, dic in atom_equiv.items():
+            equivs = dic['equivs']
+            equiv = equivs[idx]
+            Answer[equiv_level] = equiv
+        return Answer
 
 class respyte_molecules:
     """ Respyte molecule object 
@@ -350,34 +416,28 @@ class respyte_molecules:
     ----------
     mols : list
         a list of respyte_molecule objects
-    atomids: list
-        a list of atom ids.
-    atomid_dict: dict
-        a dictionary containing information of atom ids.
-    fixed_charges: list
-        a list of [[atom ids], sum of charges of the atoms].
+    atom_equiv : dict
+        a dictionary, whose keys are equivalence level('nosym', 'connectivity', 'relaxed_connectivity', 'symbol', 'symbol2')
+        and the values are dictionarys, having 'equivs', a list of set of equiv values used in the system(molecules object), 
+        and 'info', a dictionary contains definition of each equiv value. 
+        note that term, 'equiv' is the replacement of 'atomid'
     Methods
     -------
     add_molecule(molecule):
         add respyte_molecule object.
-    change_idx_to_id_fixed_charges(fixed_charges, atomids):
-        change list of indices in fixed_charge to list of ids. 
-    find_id(info, atomid_dict):
-        find id from given dictionary.
-    update_atomids(current_atomids, current_atomid_dict, input_molecule)
-         update atomids and atomid_dict of the input molecule object. 
-    set_atom_id(symmetry='polar'):
-        set atom ids and update atomids, atomid_dict.
-    get_polar_ids:
-        return a list of polar atom ids.
-    fix_polar_charges_from_previous_step(object)
+    update_molecule_atom_equiv(molecule):
+        update equiv values to avoid the case where one equiv value is assigned to 
+        non-equivalent atoms across different molecules.
+    find_id(info, atom_equiv_info):
+        search id from a dictionary.
+    update_atom_equiv:
+        update self.atom_equiv
+    from_input(inp):
+        add molecules from respyte input object
     """
-
     def __init__(self):
         self.mols = []
-        self.atomids = []
-        self.atomid_dict = {}
-        self.fixed_charges = []
+        self.atom_equiv = {}
 
     def add_molecule(self, molecule):
         '''
@@ -387,22 +447,71 @@ class respyte_molecules:
                         molecule (respyte_molecule): respyte_molecule object       
         ''' 
         assert isinstance(molecule, respyte_molecule), 'input molecule is not a respyte_molecule'
-
-        # 1.update ids to avoid overlap between different sets of atom ids from each molecule
-        self.update_atomids(self.atomids, self.atomid_dict, molecule)
-
-        # 2. save molecule into mols 
+        # 1.update atom_equiv of the input molecule before adding it
+        molecule = self.update_molecule_atom_equiv(molecule)
+        # 2. store the molecule into mols 
         self.mols.append(molecule)
+        # 3. update self.atom_equiv
+        self.update_atom_equiv()
 
-        # 3. update self.atomids, self.atomid_dict 
-        self.atomid_dict.update(molecule.atomid_dict)
-        self.atomids = list(set(self.atomid_dict.keys()))
+    def update_molecule_atom_equiv(self, molecule):
+        '''
+        update equiv values to avoid the case where one equiv value is assigned to 
+        non-equivalent atoms across different molecules
+        '''
+        updated_molecule = copy.deepcopy(molecule)
+        if len(self.mols) >0:
+            for equiv_level, dic in updated_molecule.atom_equiv.items():
+                if equiv_level in ['symbol', 'symbol2']:
+                    pass 
+                else: 
+                    starting_number = max(self.atom_equiv[equiv_level]['equivs']) + 1
+                    new_equivs = list(np.array(dic['equivs'])+ starting_number)
+                    new_atom_equiv_info = updated_molecule.get_atom_equiv_info(new_equivs)
 
-        # 4. update fixed_charges -> [[ids], charge], ...]
-        new_fixed_charges = self.change_idx_to_id_fixed_charges(molecule.fixed_charges, molecule.atomids)
-        for new_fixed_charge_lst in new_fixed_charges:
-            if new_fixed_charge_lst not in self.fixed_charges:
-                self.fixed_charges.append(new_fixed_charge_lst)
+                    for equiv, list_of_info in new_atom_equiv_info.items():
+                        for info in list_of_info:
+                            equiv_matched = self.find_id(info, self.atom_equiv[equiv_level]['info'])
+                            if equiv_matched is not None: 
+                                break
+                        if equiv_matched is not None: 
+                            new_equivs = [equiv_matched if x == equiv else x for x in new_equivs]
+                    new_atom_equiv_info = molecule.get_atom_equiv_info(new_equivs)
+                    updated_molecule.atom_equiv[equiv_level] = {'equivs': new_equivs, 'info': new_atom_equiv_info}
+        return updated_molecule
+
+    def find_id(self, info, atom_equiv_info):
+        '''
+        search id from a dictionary.
+
+                Parameters:
+                        info (dict): a dictionary containing information of atom id of interest
+                        atom_equiv_info (dict): a dictionary containing information of equivs.
+
+                Returns:
+                        atomid_matched  (int): equiv value matching to the info
+        ''' 
+        equiv_matched = None
+        for equiv, list_of_info in atom_equiv_info.items():
+            if info in list_of_info:
+                equiv_matched = equiv
+        return equiv_matched
+
+    def update_atom_equiv(self):
+        '''
+        update self.atom_equiv
+        '''
+        atom_equiv = {}
+        for mol in self.mols:
+            for equiv_level, dic in mol.atom_equiv.items():
+                equivs = dic['equivs']
+                info   = dic['info']
+                if equiv_level not in atom_equiv.keys():
+                    atom_equiv[equiv_level] = defaultdict(dict)
+                atom_equiv[equiv_level]['info'].update(info)
+        for equiv_level in atom_equiv.keys():
+            atom_equiv[equiv_level]['equivs'] = sorted(list(set(atom_equiv[equiv_level]['info'].keys())))
+        self.atom_equiv = atom_equiv
 
     def from_input(self, inp):
         '''
@@ -429,8 +538,7 @@ class respyte_molecules:
                 else:
                     raise RuntimeError(" Coordinate file should have pdb or mol2 file format! ")
                 espf_file = os.path.join(path, '%s.espf' % molN_confN)
-                # molecule may want to store its name. 
-                # need to implement function store selected grid pts (later)
+
                 if inp.gridinfo == None:
                     settings = None
                 else:
@@ -447,131 +555,10 @@ class respyte_molecules:
                         mol.set_residue_charge_by_resname(resname, inp.resChargeDict[resname])
                 for atomN, fixed_atomic_charge_info in inp.fixed_atomic_charge.items():
                     for atom in mol.GetAtoms():
-                        if atom.resname == fixed_atomic_charge_info['resname'] and atom.atomname == fixed_atomic_charge_info['atomname']:
+                        if atom.resname == fixed_atomic_charge_info['resname'] and atom.atomname == fixed_atomic_charge_info['atomname']: ## do i want to check molname?
                             mol.set_fragment_charge([atom.idx], fixed_atomic_charge_info["charge"])
 
                 self.add_molecule(mol)
-
-    def change_idx_to_id_fixed_charges(self, fixed_charges, atomids):
-        '''
-        change list of indices in fixed_charge to list of ids.  
-
-                Parameters:
-                        fixed_charges (list): a list  of [list of indices ,fixed_charge]
-                        atomids (list): a list of atom ids     
-        ''' 
-        new_fixed_charges = []
-        for list_of_atom_idx, charge in fixed_charges:
-            list_of_atom_ids = [atomid for idx, atomid in enumerate(atomids) if idx in list_of_atom_idx]
-            new_fixed_charges.append([list_of_atom_ids, charge])
-        return new_fixed_charges
-
-    def find_id(self, info, atomid_dict):
-        '''
-        search id from a dictionary.
-
-                Parameters:
-                        info (dict): a dictionary containing information of atom id of interest
-                        atomid_dict (dict): a dictionary containing information of atom ids.
-
-                Returns:
-                        atomid_matched  (int): atom id matching to the info
-        ''' 
-        atomid_matched = None
-        for atomid, list_of_info in atomid_dict.items():
-            if info in list_of_info:
-                atomid_matched = atomid
-        return atomid_matched
-    
-    def update_atomids(self, current_atomids, current_atomid_dict, input_molecule):
-        '''
-        update atomids and atomid_dict of the input molecule object. 
-
-                Parameters:
-                        current_atomids (list): a list of atom ids.
-                        current_atomid_dict (dict): a dictionary containing information of atom ids.
-                        input_molecule (respyte_molecule): respyte_molecule object 
-        ''' 
-        if len(current_atomids) == 0:
-            pass
-        else: 
-            starting_number = max(current_atomids) +1 
-            new_atomids = list(np.array(input_molecule.atomids)+ starting_number)
-            input_molecule.atomids = new_atomids
-            input_molecule.update_atomid_dict()
-
-            for atomid, list_of_info in input_molecule.atomid_dict.items():
-                for info in list_of_info:
-                    atomid_matched = self.find_id(info, current_atomid_dict)
-                    if atomid_matched is not None: 
-                        break 
-                if atomid_matched is not None: 
-                    input_molecule.atomids = [atomid_matched if x == atomid else x for x in input_molecule.atomids]
-            input_molecule.update_atomid_dict()
-        
-    def set_atom_id(self, symmetry='polar'):
-        '''
-        set atom ids and update atomids, atomid_dict.
-
-                Parameters: 
-                        symmetry (str): "all" , "polar" or "nosym"
-        '''    
-        new_atomids = []
-        new_atomid_dict ={}
-        new_fixed_charges = []
-        # loop over molecules and reassign ids 
-        for mol in self.mols: 
-            # update mol first 
-            mol.set_atom_id(symmetry)
-            self.update_atomids(new_atomids, new_atomid_dict, mol) 
-            # then update atomids, atomid_dict, fixed_charges? 
-            new_atomid_dict.update(mol.atomid_dict)
-            new_atomids = list(set(new_atomid_dict.keys()))
-            fixed_charges_in_ids = self.change_idx_to_id_fixed_charges(mol.fixed_charges, mol.atomids)
-            for fixed_charge_lst in fixed_charges_in_ids:
-                if fixed_charge_lst not in new_fixed_charges: 
-                    new_fixed_charges.append(fixed_charge_lst)
-        self.atomids = new_atomids
-        self.atomid_dict = new_atomid_dict
-        self.fixed_charges = new_fixed_charges
-
-    def get_polar_ids(self):
-        '''
-        return a list of polar atom ids.
-
-                Returns:
-                        polar_ids (list): a list of polar atom ids.
-        '''    
-        polar_ids =  []
-        for mol in self.mols: 
-            for index in mol.polar_atom_indices:
-                polar_ids.append(mol.atomids[index])
-        polar_ids = list(set(polar_ids))
-        return polar_ids
-
-    def fix_polar_charges_from_previous_step(self, objective):
-        '''
-        add polar atom information to fixed_charges.
-
-                Parameters: 
-                        objective (respyte_objective): objective object containing charges
-        '''    
-        # processing objective object
-        charges = {} 
-        for val, val_info in zip(objective.vals, objective.val_info):
-            atomid_, model, vartype = val_info
-            if vartype == 'q':
-                #current_id<-atominfo <-atomid
-                atomid_info_ = objective.molecules.atomid_dict[atomid_]
-                
-                atomid = self.find_id(atomid_info_[0], self.atomid_dict)
-                charges[atomid] = val
-
-        polar_ids = self.get_polar_ids()
-        for polar_id in  polar_ids:
-            polar_charge = charges[polar_id]
-            self.fixed_charges.append([[polar_id], polar_charge])
-
 
 def rdmolFromFile(filename):
     '''
@@ -612,24 +599,28 @@ def assignRadiiRdmol(mol, radii='bondi'):
         raise NotImplementedError('assigning modified bondi radii on RDKit mol not implemented yet!')
     return mol
     
-def get_polar_atom_indices(filename):
+def get_atomic_properties(filename):
     '''
-    Read mol2 or pdb file and return a list of polar atom indices
-
-            Parameters:
-                    filename (str): mol2 or pdb file name
-
-            Returns:
+    Using RDKit, get atomic polarities and symmetry classes of a molecule
+            Parameters: 
+                    filename (str): mo2 or pdb file name
+            Returns: 
                     polar_atom_indices (list): a list of polar atom indices
+                    polar_hydrogen_indices (list): a list of polar hydrogen indices
+                    symmetryClass (list): a list of symmetry classes 
+
     '''
     rdmol = rdmolFromFile(filename)
+
+    # 1. polar atom indices and polar hydrogen indices
     polar_atom_indices = []
-    # 1. non-alkyl carbons
+    polar_hydrogen_indices = []
     for atom in rdmol.GetAtoms():
+        # 1-1. non-alkyl carbons
         if atom.GetSymbol() == 'C' and str(atom.GetHybridization()) != 'SP3':
             polar_atom_indices.append(atom.GetIdx())
     for atom in rdmol.GetAtoms():
-        # 2. non-alkyl hydrogens
+        # 1-2. non-alkyl hydrogens
         if atom.GetSymbol() == 'H':
             for bond in atom.GetBonds():
                 atom2 = bond.GetOtherAtom(atom)
@@ -637,40 +628,13 @@ def get_polar_atom_indices(filename):
                     polar_atom_indices.append(atom.GetIdx())
                 elif atom2.GetSymbol() == 'C' and atom2.GetIdx() in polar_atom_indices:
                     polar_atom_indices.append(atom.GetIdx())
-        # 3. atoms besides C and H
+                if atom2.GetSymbol() in ['N', 'O']: # [#1:1]-[#7,#8]
+                    polar_hydrogen_indices.append(atom.GetIdx()) 
+        # 1-3. heteroatoms
         if (atom.GetSymbol() != 'C' and atom.GetSymbol() !='H'):
             polar_atom_indices.append(atom.GetIdx())
-    return polar_atom_indices
 
-def get_symmetry_class_using_CIPRank(filename):
-    '''
-    Read mol2 or pdb file and return a list of CIP ranks of atoms
-
-            Parameters:
-                    filename (str): mol2 or pdb file name
-
-            Returns:
-                    symmetryClass (list): a list of CIP ranks of atoms
-    '''
-    rdmol = rdmolFromFile(filename)
-    rdchem.AssignStereochemistry(rdmol, cleanIt=True, force=True, flagPossibleStereoCenters=True)
-    symmetryClass = []
-    for atom in rdmol.GetAtoms():
-        symmetryClass.append(int(atom.GetProp('_CIPRank')))
-    return symmetryClass
-
-def get_symmetry_class(filename):
-    '''
-    Read mol2 or pdb file and return a list of symmetry classes using CanonicalRankAtoms
-
-            Parameters:
-                    filename (str): mol2 or pdb file name
-
-            Returns:
-                    symmetryClass (list): a list of symmetry classes
-    '''
-    rdmol = rdmolFromFile(filename)
+    # 2. symmetry Class
     symmetryClass = list(rdchem.CanonicalRankAtoms(rdmol, breakTies=False))
-    return symmetryClass
 
-                
+    return polar_atom_indices, polar_hydrogen_indices, symmetryClass

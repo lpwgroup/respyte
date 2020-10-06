@@ -1,3 +1,4 @@
+import os
 from respyte.parse import *
 from respyte.molecules import *
 from respyte.objective import *
@@ -31,9 +32,10 @@ def main():
 
     # generate molecules  object from input
     molecules = respyte_molecules()
-    molecules.from_input(inp)
-    # print(f'penalty: {inp.penalty}')
-    resp(molecules, inp.symmetry, inp.model, inp.penalty, inp.procedure,  output_path = cwd)
+    molecules.from_input(inp)    
+    # resp(molecules, inp.symmetry, inp.model, inp.penalty, inp.procedure,  output_path = cwd)
+    resp(molecules, inp.model_type, inp.parameter_types, inp.q_core_type, inp.alpha0,
+            inp.penalty, inp.procedure, output_path=cwd, verbose=True)
 
 if __name__ == '__main__':
     main()

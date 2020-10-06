@@ -1,0 +1,32 @@
+molecules:
+    meoh : 1
+
+charges :
+    meoh : 0
+
+fixed_atomic_charge : 
+    atom1 :
+       resname: MOL
+       atomname: C3
+       charge: 0.1
+
+equiv_atoms :  
+    group1:
+        molname: meoh
+        atomname: [C3, H4]
+        resname: MOL
+
+model_type :  point_charge 
+
+parameter_types:   
+    charge : connectivity
+
+penalty : 
+    ptype : L1 
+    a : 0.001  
+    b : 0.1   
+    c : 0.001  
+
+procedure : 2  
+
+
