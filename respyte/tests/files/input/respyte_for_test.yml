@@ -7,13 +7,13 @@ charges :
 fixed_atomic_charge : 
     atom1 :
        resname: MOL
-       atomname: C3
+       atomname: C1
        charge: 0.1
 
 equiv_atoms :  
     group1:
         molname: meoh
-        atomname: [C3, H4]
+        atomname: [C1, H2]
         resname: MOL
 
 model_type :  point_charge 
