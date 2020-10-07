@@ -1,7 +1,9 @@
 
 ***respyte***
 ==============================
+[//]: # (Badges)
 [![Build Status](https://travis-ci.org/lpwgroup/respyte.svg?branch=re-formatting)](https://travis-ci.org/lpwgroup/respyte)
+[![codecov](https://codecov.io/gh/lpwgroup/respyte/branch/re-formatting/graph/badge.svg)](https://codecov.io/gh/lpwgroup/respyte)
 
 A python implementation of open-source version of RESP method
 
