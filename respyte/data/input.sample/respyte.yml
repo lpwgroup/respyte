@@ -61,6 +61,10 @@ parameter_types:
     charge : connectivity
     alpha  : symbol
 
+# normalize(bool): specify whether to normalize objective function or not. 
+#                  (a ~ 1e-05 seems reasonable when normalization is applied) 
+normalize: False
+
 # q_core_type, alpha0: extra settings for fuzzy charge model
 q_core_type : valency # available types: nuclear_charge, valency, integer or float
 alpha0 : 3              # a prefactor of alpha value 

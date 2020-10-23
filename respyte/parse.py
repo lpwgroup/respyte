@@ -35,8 +35,7 @@ class Input:
             self.penalty = {'ptype': 'L1', 'a': 0.001, 'b': 0.1}
             self.procedure  = 1
             self.gridinfo = None 
-            # self.gridspace = 0.7 
-            # self.normalization = False 
+            self.normalize = False
         else:
             self.readinp(inputFile) 
 
@@ -184,6 +183,14 @@ class Input:
             print(f'  * gridinfo: {gridinfo} (default)') 
         self.gridinfo = gridinfo
 
+        # 13. normalize
+        if 'normalize' in inp: 
+            normalize = inp['normalize']
+            print(f'  * normalize: {normalize}')
+        else: 
+            normalize = False
+            print(f'  * normalize: {normalize} (default)')
+        self.normalize = normalize
 def main():
     inp = Input()
     inp.readinp(sys.argv[1])

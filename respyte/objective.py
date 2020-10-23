@@ -15,9 +15,13 @@ Letters = ['X','G','H']
 current_model_types = ['point_charge', 'point_charge_numerical', 'fuzzy_charge']
 
 class respyte_objective: 
-    def __init__(self, molecules=None, model=None, penalty=None):
+    def __init__(self, molecules=None, normalize=False, model=None, penalty=None):
         assert isinstance(molecules, respyte_molecules)
         self.molecules = copy.deepcopy(molecules)
+        assert isinstance(normalize, bool)
+        if normalize: 
+            print('** Unrestrained obj fn normalized by the number of grid points. **')
+        self.normalize = normalize
         if model: 
             assert isinstance(model, respyte_model)
             self.model = copy.deepcopy(model)
@@ -91,6 +95,11 @@ class respyte_objective:
             G0[vidx] = 2* np.dot(V, dV[vidx,:])
             for vidx2 in range(self.np):
                 H0[vidx, vidx2] = 2 * np.dot(dV[vidx,:],dV[vidx2,:])
+
+        if self.normalize:
+            X0 /= len(V)
+            G0 /= len(V)
+            H0 /= len(V)
 
         # charge constraint part 
         X1=0
@@ -184,10 +193,13 @@ class respyte_objective:
         return rrmsval
 
     def print_vals(self, verbose=True): 
-        output= []
+        outputs= []
+        rrmss = []
         for molecule in self.molecules.mols: 
-            self.print_vals_of_single_molecule(molecule, verbose)
-        return output
+            output,rrms = self.print_vals_of_single_molecule(molecule, verbose)
+            outputs.append(output)
+            rrmss.append(rrms)
+        return outputs, rrmss
   
     def print_vals_of_single_molecule(self, molecule, verbose=True):
         output = []
@@ -219,7 +231,7 @@ class respyte_objective:
             output.append(line)
             if verbose:
                 print(line)
-        return output
+        return output, rrms
 
 class respyte_penalty: 
     def __init__(self, molecules, model, penalty_function):
@@ -267,6 +279,30 @@ class respyte_penalty:
                         X2 += x
                         G2[vidx] += g
                         H2[vidx][vidx] += h
+        if self.penalty_function['ptype'] == 'L2':
+            # L1: harmonic penalty function
+            if 'a' in self.penalty_function.keys():
+                a = self.penalty_function['a'] 
+            else: 
+                warn('a(prefac of charge regularization) not set. will use default a=0.001')
+                a = 0.001 
+            for molecule in self.molecules.mols:
+                param_type = 'charge'
+                equiv_level = self.model.parameter_types[param_type]
+                for equiv  in molecule.atom_equiv[equiv_level]['equivs']:
+                    if molecule.atom_equiv[equiv_level]['info'][equiv][0]['elem'] != 'H':
+                        vidx = self.model.parm_info.index([equiv, param_type, equiv_level])
+                        q = vals_[vidx]
+                        x = a * q**2 
+                        g = 2*a * q
+                        h = 2*a
+
+                        X2 += x
+                        G2[vidx] += g
+                        H2[vidx][vidx] += h
+        if self.penalty_function['ptype'] == 'Hinv': 
+            raise NotImplementedError
+
         return X2, G2, H2
 
 

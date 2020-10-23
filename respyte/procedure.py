@@ -5,43 +5,43 @@ from respyte.molecules import respyte_molecules
 from respyte.objective import respyte_objective
 from respyte.optimizer import respyte_optimizer
 
-def single_stage_procedure(molecules, model_type, parameter_types, q_core_type, alpha0,
+def single_stage_procedure(molecules, model_type, parameter_types, q_core_type, alpha0, normalize,
                             penalty, fix_polar_charges=False, prev_objective=None, verbose=True): 
     
     # create objective and add model and penalty function
-    objective = respyte_objective(molecules)
+    objective = respyte_objective(molecules, normalize)
     objective.add_model(model_type, parameter_types, q_core_type, alpha0, fix_polar_charges, prev_objective)
     objective.add_penalty(penalty)
 
     # define an optimizer and run  the optimizer
     optimizer = respyte_optimizer(objective)
-    optimizer.run(verbose=verbose)
+    outputs, rrmss = optimizer.run(verbose=verbose)
 
-    return  optimizer.objective
+    return  optimizer.objective, outputs, rrmss
     
 penalty_default = {'ptype':'L1', 'a':0.001, 'b':0.1, 'c':0.1}
 
-def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, penalty=penalty_default,
+def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, normalize=False,penalty=penalty_default,
          procedure=1, output_path=None, verbose=True):
     if procedure == 2: 
         print('\n\033[1mRunning two-stage fit\033[0m')
         print('1st stage: ')
         mod_parameter_types = copy.deepcopy(parameter_types)
         mod_parameter_types['charge'] = 'relaxed_connectivity'
-        objective1 = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type,
-                                            alpha0=alpha0, penalty=penalty, verbose=verbose)
+        objective1, outputs1, rrmss1 = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type,
+                                            alpha0=alpha0, normalize=normalize, penalty=penalty, verbose=verbose)
         # second stage
         print('\n2nd stage: ')
         mod_parameter_types['charge'] = 'connectivity'
         mod_penalty = copy.deepcopy(penalty)
         mod_penalty['a'] *= 2
-        objective = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type, 
-                                            alpha0=alpha0, penalty=mod_penalty, fix_polar_charges=True, 
+        objective, outputs, rrmss = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type, 
+                                            alpha0=alpha0, normalize=normalize, penalty=mod_penalty, fix_polar_charges=True, 
                                             prev_objective=objective1, verbose=verbose)
     elif procedure == 1: 
         print('\033[1mRunning single-stage fit\033[0m')
-        objective = single_stage_procedure(molecules, model_type, parameter_types, q_core_type=q_core_type,
-                                            alpha0=alpha0, penalty=penalty, verbose=verbose)
+        objective, outputs, rrmss = single_stage_procedure(molecules, model_type, parameter_types, q_core_type=q_core_type,
+                                            alpha0=alpha0, normalize=normalize, penalty=penalty, verbose=verbose)
 
 
     if  output_path:
@@ -50,7 +50,7 @@ def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, 
             shutil.rmtree(output_path)
         os.mkdir(output_path)
         write_output(objective, output_path)
-    return objective
+    return objective, outputs, rrmss
  
 try:
     import openeye.oechem as oechem

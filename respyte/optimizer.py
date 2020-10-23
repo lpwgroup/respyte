@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sci
+import copy
 from respyte.objective import respyte_objective
 
 
@@ -24,7 +25,7 @@ class  respyte_optimizer:
                         objective (respyte_objective): respyte objective object.
         '''
         assert isinstance(objective,  respyte_objective)
-        self.objective  = objective 
+        self.objective  = copy.deepcopy(objective)
 
     def run(self, threshold=1e-8, verbose=True):
         '''
@@ -43,11 +44,11 @@ class  respyte_optimizer:
             if ndq < threshold: 
                 converged = True
                 print('\033[1m Converged!\033[0m')
-                self.objective.print_vals(verbose=True)
+                outputs, rrmss = self.objective.print_vals(verbose=verbose)
             else: 
                 if verbose: 
                     print(' Iter {:d}. norm(dq): {:.2e} X2: {:.2e}'.format(iteration, ndq, Obj['X']))  
                 iteration += 1
                 for idx, val in enumerate(self.objective.parms):
                     self.objective.parms[idx] = val + dq[idx]
-        return self.objective
+        return outputs, rrmss
