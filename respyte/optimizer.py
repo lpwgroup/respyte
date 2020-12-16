@@ -44,11 +44,11 @@ class  respyte_optimizer:
             if ndq < threshold: 
                 converged = True
                 print('\033[1m Converged!\033[0m')
-                outputs, rrmss = self.objective.print_vals(verbose=verbose)
+                outputs, rrmss, vals = self.objective.print_vals(verbose=verbose)
             else: 
                 if verbose: 
                     print(' Iter {:d}. norm(dq): {:.2e} X2: {:.2e}'.format(iteration, ndq, Obj['X']))  
                 iteration += 1
                 for idx, val in enumerate(self.objective.parms):
                     self.objective.parms[idx] = val + dq[idx]
-        return outputs, rrmss
+        return outputs, rrmss, vals
