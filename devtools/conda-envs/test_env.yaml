@@ -13,7 +13,7 @@ dependencies:
   - scipy
   - networkx
   - rdkit
-
+  - sympy
     # Pip-only installs
   - pip:
     - codecov
