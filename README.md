@@ -18,7 +18,7 @@ Create a new environment and install all dependencies
 conda create -n respyte-beta python=3.7
 source activate respyte-beta
 conda install -c psi4 psi4 
-conda install scipy networkx pyyaml 
+conda install scipy networkx pyyaml sympy
 conda install -c rdkit rdkit 
 ```
 Optionally, one can write fitting results into `.mol2` files if OpenEye toolkit can be imported(only support point charge model).
