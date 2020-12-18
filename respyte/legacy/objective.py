@@ -14,197 +14,23 @@ Letters = ['X','G','H']
 
 current_model_types = ['point_charge', 'point_charge_numerical', 'fuzzy_charge']
 
-class esp_target: 
-    def __init__(self, molecules, model, normalize):
-        self.molecules = copy.deepcopy(molecules) 
-        self.model = copy.deepcopy(model)
-        self.parm_info = copy.deepcopy(model.parm_info)
-        self.normalize = normalize    
-
-    def get(self, vals_):
-        Answer = {'X':0.0, 'G':np.zeros(len(vals_)), 'H':np.zeros((len(vals_), len(vals_)))}
-        
-        def compute(vals_):
-            '''
-            Return a list of residual at a given point, vals_
-            '''
-            V = []
-            for molecule in self.molecules.mols: 
-                residuals = np.zeros((len(molecule.gridxyz)))
-                for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
-                    residual = self.pot_residual(molecule, gridpt, esp, vals_)
-                    residuals[idx] = residual
-                residuals_list = residuals.tolist()
-                V += residuals_list
-            return np.array(V)
-
-        V = compute(vals_)
-        Answer['X'] = np.dot(V,V) / (len(V) if self.normalize else 1)
-        
-        dV = np.zeros((len(vals_), len(V)))
-        if self.model.model_type == 'point_charge': 
-            loc = 0
-            for molecule in self.molecules.mols:
-                for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
-                    for atom in molecule.GetAtoms():
-                        qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                        vai,  vai_deriv = single_pt_chg_pot(atom.xyz, q, gridpt)
-                        dV[qidx][idx+loc] += -1*vai_deriv
-                loc  += len(molecule.gridxyz)
-        else: 
-            # use a numerical solution of partial differential equations
-            for vidx in range(len(vals_)):
-                dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
-
-        for vidx in range(len(vals_)):
-            Answer['G'][vidx] = 2* np.dot(V, dV[vidx,:])  / (len(V) if self.normalize else 1)
-            for vidx2 in range(len(vals_)):
-                Answer['H'][vidx, vidx2] = 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
-        
-        return Answer
-        
-    def get_val_from_atom(self, atom, param_type, vals_):
-        equiv_level = self.model.parameter_types[param_type]
-        equiv = atom.atom_equiv[equiv_level]
-        idx = self.parm_info.index([equiv, param_type, equiv_level])
-        val = vals_[idx]
-        return idx, val
-
-    def return_current_values(self, molecule, param_type, vals_):
-        return_vals = []
-        for atom in molecule.GetAtoms():
-            vidx, v = self.get_val_from_atom(atom, param_type, vals_)
-            return_vals.append(v)
-        return return_vals
-    
-    def pot_residual(self, molecule, gridpt, esp, vals_):
-        Vi = 0
-        if self.model.model_type in ['point_charge', 'point_charge_numerical']:
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                vai,vai_deriv = single_pt_chg_pot(atom.xyz, q, gridpt)
-                Vi += vai
-        elif self.model.model_type  == 'fuzzy_charge':
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
-
-                charge_equiv_level = self.model.parameter_types['charge']
-                equiv = atom.atom_equiv[charge_equiv_level]
-                q_core = self.model.get_q_core_val(charge_equiv_level, equiv)
-
-                vai = single_fuzzy_chg_pot(atom.xyz, q=q, q_core=q_core, alpha=alpha, gridpt=gridpt)
-                Vi += vai
-        residual = esp - Vi
-        return residual
-
-class ef_target(esp_target):
-    def __init__(self, molecules, model, normalize):
-        super().__init__(molecules, model, normalize)
-
-    def get(self, vals_):
-        Answer = {'X':0.0, 'G':np.zeros(len(vals_)), 'H':np.zeros((len(vals_), len(vals_)))}
-
-        def compute(vals_):
-            '''
-            Return a list of residual at a given point, vals_
-            '''
-            V = []
-            for molecule in self.molecules.mols: 
-                residuals = np.zeros((len(molecule.gridxyz)))
-                for idx, (gridpt, ef) in enumerate(zip(molecule.gridxyz, molecule.efvals)):
-                    residual = self.field_residual(molecule, gridpt, ef, vals_)
-                    residuals[idx] = residual
-                residuals_list = residuals.tolist()
-                V += residuals_list
-            return np.array(V)
-
-        V = compute(vals_)
-        Answer['X'] = np.dot(V,V)  / (len(V) if self.normalize else 1)
-
-        dV = np.zeros((len(vals_), len(V)))
-
-        # use a numerical solution of partial differential equations
-        for vidx in range(len(vals_)):
-            dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
-
-        for vidx in range(len(vals_)):
-            Answer['G'][vidx] = 2* np.dot(V, dV[vidx,:])  / (len(V) if self.normalize else 1)
-            for vidx2 in range(len(vals_)):
-                Answer['H'][vidx, vidx2] = 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
-        
-        return Answer
-
-    def field_residual(self, molecule,gridpt, ef, vals_):
-        Ei = np.zeros(3)
-        if self.model.model_type in ['point_charge', 'point_charge_numerical']:
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                Eai = single_pt_chg_field(atom.xyz, q, gridpt)
-                Ei += Eai
-        elif self.model.model_type  == 'fuzzy_charge':
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
-
-                charge_equiv_level = self.model.parameter_types['charge']
-                equiv = atom.atom_equiv[charge_equiv_level]
-                q_core = self.model.get_q_core_val(charge_equiv_level, equiv)
-
-                Eai = single_fuzzy_chg_field(atom.xyz, q=q, q_core=q_core, alpha=alpha, gridpt=gridpt)
-                Ei += Eai
-        diff = np.array(ef) - np.array(Ei)
-        residual = np.linalg.norm(diff)
-        # print(f'ef: {ef}, Ei:{Ei}, residual:{residual:.4f}')
-        return residual 
-    
-implemented_targets = {'esp': esp_target, 
-                       'ef' : ef_target,
-                       }
-
 class respyte_objective: 
-    def __init__(self, molecules=None, model=None, normalize=False, targets=None, penalty=None):
+    def __init__(self, molecules=None, normalize=False, model=None, penalty=None):
         assert isinstance(molecules, respyte_molecules)
         self.molecules = copy.deepcopy(molecules)
-
+        assert isinstance(normalize, bool)
+        if normalize: 
+            print('** Unrestrained obj fn normalized by the number of grid points. **')
+        self.normalize = normalize
         if model: 
             assert isinstance(model, respyte_model)
             self.model = copy.deepcopy(model)
             self.parms = copy.deepcopy(model.parms)
             self.parm_info = copy.deepcopy(model.parm_info)
             self.np = len(self.parms)
-            
-        assert isinstance(normalize, bool)
-        if normalize: 
-            print('** Unrestrained obj fn normalized by the number of grid points. **')
-        self.normalize = normalize
-
-        self.targets = []
-        if targets:
-            self.add_targets(targets)            
-
         if penalty: 
             assert isinstance(penalty, respyte_penalty)
             self.penalty = penalty
-
-    def add_targets(self, targets):
-        assert isinstance(targets, list)
-        for target in targets: 
-            self.add_target(target)
-
-    def add_target(self, target): 
-        assert target['type'].lower() in ['esp', 'ef']
-        assert isinstance(target['weight'], (int,float))
-        # check if the type is already in self.targets 
-        exists = False
-        for current_target in self.targets: 
-            if target['type'].lower() == current_target['type']:
-                exists = True
-                to_be_popped = current_target
-        if exists: 
-            print(f'Target {target["type"]} already exists. Ignore the old target and will re-assign the target weight to {target["weight"]}.')
-            self.targets.pop(to_be_popped)
-        self.targets.append({'type': target['type'].lower(), 'weight': target['weight']})
 
     def add_model(self, model_type, parameter_types, q_core_type=None, alpha0=None, fix_polar_charges=False, prev_objective=None): 
         assert model_type in current_model_types
@@ -230,17 +56,55 @@ class respyte_objective:
             raise NotImplementedError
 
     def get_charge_model(self):
-        Obj0 = {'X':0.0, 'G':np.zeros(self.np), 'H':np.zeros((self.np, self.np))}
+        X0=0
+        G0 = np.zeros(self.np)
+        H0 = np.zeros((self.np, self.np))
+        def compute(vals_):
+            '''
+            Return a list of residual at a given point, vals_
+            '''
+            V = []
+            for molecule in self.molecules.mols: 
+                residuals = np.zeros((len(molecule.gridxyz)))
+                for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
+                    residual = self.pot_residual(molecule, gridpt, esp, vals_)
+                    residuals[idx] = residual
+                residuals_list = residuals.tolist()
+                V += residuals_list
+            return np.array(V)
 
-        for tgt in self.targets: 
-            tgt_wt = tgt['weight'] 
-            target = implemented_targets[tgt['type']](self.molecules, self.model, self.normalize)
-            Ans = target.get(self.parms) 
-            for i in range(3):
-                Obj0[Letters[i]] += Ans[Letters[i]] * tgt_wt
+        V = compute(self.parms)
+        X0 = np.dot(V,V)
+
+        dV = np.zeros((self.np, len(V)))
+        if self.model.model_type == 'point_charge': 
+            loc = 0
+            for molecule in self.molecules.mols:
+                for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
+                    for atom in molecule.GetAtoms():
+                        qidx, q = self.get_val_from_atom(atom, 'charge', self.parms)
+                        vai,  vai_deriv = single_pt_chg_pot(atom.xyz, q, gridpt)
+                        dV[qidx][idx+loc] += -1*vai_deriv
+                loc  += len(molecule.gridxyz)
+        else: 
+            # use a numerical solution of partial differential equations
+            for vidx in range(self.np):
+                dV[vidx], _ = f12d3p(fdwrap(compute, self.parms, vidx), h=0.0001, f0=V) #need to modify h
+
+        for vidx in range(self.np):
+            G0[vidx] = 2* np.dot(V, dV[vidx,:])
+            for vidx2 in range(self.np):
+                H0[vidx, vidx2] = 2 * np.dot(dV[vidx,:],dV[vidx2,:])
+
+        if self.normalize:
+            X0 /= len(V)
+            G0 /= len(V)
+            H0 /= len(V)
 
         # charge constraint part 
-        Obj1 = {'X':0.0, 'G':np.zeros(self.np), 'H':np.zeros((self.np, self.np))}
+        X1=0
+        G1 = np.zeros(self.np)
+        H1 = np.zeros((self.np, self.np))
 
         for idx, fixed_charge_info in enumerate(self.model.combined_fixed_charges):
             equivs, fixed_charge  = fixed_charge_info
@@ -254,18 +118,18 @@ class respyte_objective:
             lambdaidx = self.parm_info.index([lambdai, 'lambda', equiv_level])
             vlambda = self.parms[lambdaidx]
             q_diff = sum_q - fixed_charge
-            Obj1['X'] += vlambda * q_diff
-            Obj1['G'][lambdaidx] = q_diff
+            X1 += vlambda * q_diff
+            G1[lambdaidx] = q_diff
             for equiv in equivs:
                 vidx = self.parm_info.index([equiv, param_type, equiv_level])
-                Obj1['G'][vidx] += vlambda
-                Obj1['H'][vidx][lambdaidx] += 1
-                Obj1['H'][lambdaidx][vidx] += 1
+                G1[vidx] += vlambda
+                H1[vidx][lambdaidx] += 1
+                H1[lambdaidx][vidx] += 1
 
-        Answer = {'X':0.0, 'G':np.zeros(self.np), 'H':np.zeros((self.np, self.np))}
-        for i in range(3):
-            Answer[Letters[i]] += Obj0[Letters[i]] + Obj1[Letters[i]]
-
+        X = X0 + X1
+        G = G0 + G1
+        H = H0 + H1
+        Answer = {'X':X, 'G':G, 'H':H}
         return Answer
        
     def get_val_from_atom(self, atom, param_type, vals_):
@@ -303,28 +167,6 @@ class respyte_objective:
         residual = esp - Vi
         return residual
 
-    def field_residual(self, molecule,gridpt, ef, vals_):
-        Ei = 0
-        if self.model.model_type in ['point_charge', 'point_charge_numerical']:
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                Eai = single_pt_chg_field(atom.xyz, q, gridpt)
-                Ei += Eai
-        elif self.model.model_type  == 'fuzzy_charge':
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
-
-                charge_equiv_level = self.model.parameter_types['charge']
-                equiv = atom.atom_equiv[charge_equiv_level]
-                q_core = self.model.get_q_core_val(charge_equiv_level, equiv)
-
-                Eai = single_fuzzy_chg_field(atom.xyz, q=q, q_core=q_core, alpha=alpha, gridpt=gridpt)
-                Ei += Eai
-        diff = np.array(ef) - np.array(Ei)
-        residual = np.linalg.norm(diff)
-        return residual        
-
     def Full(self):
         '''
         calculate an objective function with penalty contribution.
@@ -353,13 +195,11 @@ class respyte_objective:
     def print_vals(self, verbose=True): 
         outputs= []
         rrmss = []
-        vals = []
         for molecule in self.molecules.mols: 
-            output,rrms, data = self.print_vals_of_single_molecule(molecule, verbose)
+            output,rrms = self.print_vals_of_single_molecule(molecule, verbose)
             outputs.append(output)
             rrmss.append(rrms)
-            vals.append(data)
-        return outputs, rrmss, vals
+        return outputs, rrmss
   
     def print_vals_of_single_molecule(self, molecule, verbose=True):
         output = []
@@ -391,7 +231,7 @@ class respyte_objective:
             output.append(line)
             if verbose:
                 print(line)
-        return output, rrms, data
+        return output, rrms
 
 class respyte_penalty: 
     def __init__(self, molecules, model, penalty_function):
@@ -512,23 +352,6 @@ def single_pt_chg_pot(xyz, q, gridpt):
     pot_deriv = 1/dist
     return pot, pot_deriv
 
-def single_pt_chg_field(xyz, q, gridpt):
-    '''
-    Return a electric field at a grid point due to a point charge q at xyz. 
-            Parameters:
-                    xyz (list): xyz coordinates of a point charge (Angstrom)
-                    q (float): a point charge 
-                    gridpt (list): xyz coordinates of a grid point (Angstrom)
-            Returns:
-                    field (float): electric field at a grid point
-    '''
-    xyz = np.array(xyz) /bohr2Ang
-    gridpt = np.array(gridpt) /bohr2Ang
-    dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))
-    prefactor = q / pow(dist, 3)
-    field = (gridpt - xyz) * prefactor ##
-    return field
-
 def single_fuzzy_chg_pot(xyz, q, q_core, alpha, gridpt):
     '''
     Return a potential at a grid point due to a fuzzy charge at xyz. 
@@ -549,29 +372,6 @@ def single_fuzzy_chg_pot(xyz, q, q_core, alpha, gridpt):
     dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))
     pot = q_core/dist + (q-q_core)/dist * (1-np.exp(-1* alpha*dist))
     return pot
-
-def single_fuzzy_chg_field(xyz, q, q_core, alpha, gridpt):
-    '''
-    Return a field at a grid point due to a fuzzy charge at xyz. 
-            Parameters:
-                    xyz (list): xyz coordinates of a point charge (Angstrom)
-                    q (float): overall partial charge of a fuzzy charge
-                    q_core (float): core charge of a fuzzy charge
-                    alpha (float): smearing parameter of a fuzzy charge (1/Angstrom)
-                    gridpt (list): xyz coordinates of a grid point (Angstrom)
-            Returns:
-                    field (float): electric field at a grid point
-    '''
-    xyz = np.array(xyz) /bohr2Ang
-    gridpt = np.array(gridpt) /bohr2Ang
-    alpha_bohr = alpha * bohr2Ang
-    dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))
-    dist2 = pow(dist, 2)
-    dist3 = pow(dist, 3)
-    dampf = 1-np.exp(-1* alpha*dist)
-    prefactor = q_core/dist3 + (q-q_core)/dist3 * dampf - (q-q_core) * alpha_bohr * (1-dampf)/dist2 
-    field = (gridpt - xyz) * prefactor ##
-    return field
 
 # finite differences (copy-pasted from ForceBalance source code)
 def fdwrap(func,mvals0,pidx,key=None,**kwargs):
