@@ -143,7 +143,7 @@ class point_charge_model(respyte_model):
         # 2. using sympy rref, find indices of independent rows 
         _, inds = sympy.Matrix(matrix).T.rref()
         if len(inds) != len(combined_fixed_charges):
-            print('Warning! There is at least one linear dependent inputs in fixed charges. It will remove the dependent inputs to avoid singular matrix error!')
+            print('Warning! There is one or more linearly dependent fixed fragment charges. It will remove redundant fixed fragment charges to avoid singular matrix error!')
         reduced_combined_fixed_charges = []
         ls = []
         l_info = []
