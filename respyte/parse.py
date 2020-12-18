@@ -36,6 +36,8 @@ class Input:
             self.procedure  = 1
             self.gridinfo = None 
             self.normalize = False
+            self.targets = [{'type': 'esp',  'weight': 1.0}]
+            self.convergence_threshold = 1e-8
         else:
             self.readinp(inputFile) 
 
@@ -191,6 +193,30 @@ class Input:
             normalize = False
             print(f'  * normalize: {normalize} (default)')
         self.normalize = normalize
+
+        # 14. targets 
+        if 'targets' in inp: 
+            targets = []
+            for target in inp['targets']:
+                assert  target['type'].lower() in ['esp', 'ef']
+                if 'weight' not  in target:
+                    target['weight']  = 1.0
+                targets.append(target)
+            print(f'  * targets: {targets}')
+        else: 
+            targets = [{'type': 'esp',  'weight': 1.0}]
+            print(f'  * targets: {targets} (default)')
+        self.targets  = targets
+
+        #  15. convergence_threshold
+        if  'convergence_threshold' in inp: 
+            convergence_threshold = float(inp['convergence_threshold']) ##
+            assert isinstance(convergence_threshold,  (int, float))
+            print(f'  * convergence_threshold: {convergence_threshold}')
+        else: 
+            convergence_threshold = 1e-8
+            print(f'  * convergence_threshold: {convergence_threshold} (default)')
+        self.convergence_threshold = convergence_threshold
 def main():
     inp = Input()
     inp.readinp(sys.argv[1])

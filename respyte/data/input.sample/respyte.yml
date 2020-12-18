@@ -61,13 +61,23 @@ parameter_types:
     charge : connectivity
     alpha  : symbol
 
+# q_core_type, alpha0: extra settings for fuzzy charge model
+q_core_type : valency # available types: nuclear_charge, valency, integer or float
+alpha0 : 3              # a prefactor of alpha value 
+
 # normalize(bool): specify whether to normalize objective function or not. 
 #                  (a ~ 1e-05 seems reasonable when normalization is applied) 
 normalize: False
 
-# q_core_type, alpha0: extra settings for fuzzy charge model
-q_core_type : valency # available types: nuclear_charge, valency, integer or float
-alpha0 : 3              # a prefactor of alpha value 
+# targets(list): specify targets. each list should have type (esp or ef) and target weight
+targets:
+    - type   : esp
+      weight : 1.0
+#    - type   : ef
+#      weight : 1.0
+
+ # convergence_threshold: a convergence criterion of step size  
+convergence_threshold: 1e-8
 
 # penalty: settings for penalty function 
 penalty : 
