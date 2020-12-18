@@ -15,9 +15,9 @@ def single_stage_procedure(molecules, model_type, parameter_types, q_core_type, 
 
     # define an optimizer and run  the optimizer
     optimizer = respyte_optimizer(objective)
-    outputs, rrmss = optimizer.run(verbose=verbose)
+    outputs, rrmss, vals = optimizer.run(verbose=verbose)
 
-    return  optimizer.objective, outputs, rrmss
+    return  optimizer.objective, outputs, rrmss, vals
     
 penalty_default = {'ptype':'L1', 'a':0.001, 'b':0.1, 'c':0.1}
 
@@ -28,19 +28,20 @@ def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, 
         print('1st stage: ')
         mod_parameter_types = copy.deepcopy(parameter_types)
         mod_parameter_types['charge'] = 'relaxed_connectivity'
-        objective1, outputs1, rrmss1 = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type,
+        objective1, outputs1, rrmss1, vals1 = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type,
                                             alpha0=alpha0, normalize=normalize, penalty=penalty, verbose=verbose)
         # second stage
         print('\n2nd stage: ')
         mod_parameter_types['charge'] = 'connectivity'
         mod_penalty = copy.deepcopy(penalty)
         mod_penalty['a'] *= 2
-        objective, outputs, rrmss = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type, 
+        objective, outputs, rrmss, vals = single_stage_procedure(molecules, model_type, mod_parameter_types, q_core_type=q_core_type, 
                                             alpha0=alpha0, normalize=normalize, penalty=mod_penalty, fix_polar_charges=True, 
                                             prev_objective=objective1, verbose=verbose)
+        
     elif procedure == 1: 
         print('\033[1mRunning single-stage fit\033[0m')
-        objective, outputs, rrmss = single_stage_procedure(molecules, model_type, parameter_types, q_core_type=q_core_type,
+        objective, outputs, rrmss, vals = single_stage_procedure(molecules, model_type, parameter_types, q_core_type=q_core_type,
                                             alpha0=alpha0, normalize=normalize, penalty=penalty, verbose=verbose)
 
 
@@ -50,7 +51,7 @@ def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, 
             shutil.rmtree(output_path)
         os.mkdir(output_path)
         write_output(objective, output_path)
-    return objective, outputs, rrmss
+    return objective, outputs, rrmss, vals
  
 try:
     import openeye.oechem as oechem

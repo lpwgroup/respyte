@@ -18,7 +18,9 @@ requirements:
     - numpy
     - PyYAML
     - scipy
-
+    - networkx
+    - rdkit
+    - sympy
 
 test:
   requires:
