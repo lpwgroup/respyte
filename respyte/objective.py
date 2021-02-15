@@ -167,6 +167,28 @@ class respyte_objective:
         residual = esp - Vi
         return residual
 
+    def field_residual(self, molecule,gridpt, ef, vals_):
+        Ei = 0
+        if self.model.model_type in ['point_charge', 'point_charge_numerical']:
+            for atom in molecule.GetAtoms():
+                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
+                Eai = single_pt_chg_field(atom.xyz, q, gridpt)
+                Ei += Eai
+        elif self.model.model_type  == 'fuzzy_charge':
+            for atom in molecule.GetAtoms():
+                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
+                alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
+
+                charge_equiv_level = self.model.parameter_types['charge']
+                equiv = atom.atom_equiv[charge_equiv_level]
+                q_core = self.model.get_q_core_val(charge_equiv_level, equiv)
+
+                Eai = single_fuzzy_chg_field(atom.xyz, q=q, q_core=q_core, alpha=alpha, gridpt=gridpt)
+                Ei += Eai
+        diff = np.array(ef) - np.array(Ei)
+        residual = np.linalg.norm(diff)
+        return residual        
+
     def Full(self):
         '''
         calculate an objective function with penalty contribution.
@@ -195,11 +217,13 @@ class respyte_objective:
     def print_vals(self, verbose=True): 
         outputs= []
         rrmss = []
+        vals = []
         for molecule in self.molecules.mols: 
-            output,rrms = self.print_vals_of_single_molecule(molecule, verbose)
+            output,rrms, data = self.print_vals_of_single_molecule(molecule, verbose)
             outputs.append(output)
             rrmss.append(rrms)
-        return outputs, rrmss
+            vals.append(data)
+        return outputs, rrmss, vals
   
     def print_vals_of_single_molecule(self, molecule, verbose=True):
         output = []
@@ -231,7 +255,7 @@ class respyte_objective:
             output.append(line)
             if verbose:
                 print(line)
-        return output, rrms
+        return output, rrms, data
 
 class respyte_penalty: 
     def __init__(self, molecules, model, penalty_function):
@@ -352,6 +376,25 @@ def single_pt_chg_pot(xyz, q, gridpt):
     pot_deriv = 1/dist
     return pot, pot_deriv
 
+def single_pt_chg_field(xyz, q, gridpt):
+    '''
+    Return a electric field at a grid point due to a point charge q at xyz. 
+
+            Parameters:
+                    xyz (list): xyz coordinates of a point charge (Angstrom)
+                    q (float): a point charge 
+                    gridpt (list): xyz coordinates of a grid point (Angstrom)
+
+            Returns:
+                    field (float): electric field at a grid point
+    '''
+    xyz = np.array(xyz) /bohr2Ang
+    gridpt = np.array(gridpt) /bohr2Ang
+    dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))
+    prefactor = q / pow(dist, 3)
+    field = copy.deepcopy(xyz) * prefactor
+    return field
+
 def single_fuzzy_chg_pot(xyz, q, q_core, alpha, gridpt):
     '''
     Return a potential at a grid point due to a fuzzy charge at xyz. 
@@ -372,6 +415,31 @@ def single_fuzzy_chg_pot(xyz, q, q_core, alpha, gridpt):
     dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))
     pot = q_core/dist + (q-q_core)/dist * (1-np.exp(-1* alpha*dist))
     return pot
+
+def single_fuzzy_chg_field(xyz, q, q_core, alpha, gridpt):
+    '''
+    Return a field at a grid point due to a fuzzy charge at xyz. 
+
+            Parameters:
+                    xyz (list): xyz coordinates of a point charge (Angstrom)
+                    q (float): overall partial charge of a fuzzy charge
+                    q_core (float): core charge of a fuzzy charge
+                    alpha (float): smearing parameter of a fuzzy charge (1/Angstrom)
+                    gridpt (list): xyz coordinates of a grid point (Angstrom)
+
+            Returns:
+                    field (float): electric field at a grid point
+    '''
+    xyz = np.array(xyz) /bohr2Ang
+    gridpt = np.array(gridpt) /bohr2Ang
+    alpha_bohr = alpha * bohr2Ang
+    dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))
+    dist2 = pow(dist, 2)
+    dist3 = pow(dist, 3)
+    dampf = 1-np.exp(-1* alpha*dist)
+    prefactor = q_core/dist3 + (q-q_core)/dist3 * dampf - (q-q_core) * alpha_bohr * (1-dampf)/dist2 
+    field = copy.deepcopy(xyz) * prefactor
+    return field
 
 # finite differences (copy-pasted from ForceBalance source code)
 def fdwrap(func,mvals0,pidx,key=None,**kwargs):
