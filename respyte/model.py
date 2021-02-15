@@ -3,6 +3,9 @@ from respyte.molecules import respyte_molecules
 from respyte.fbmolecule import PeriodicTable
 import respyte.objective
 
+from rdkit import Chem
+pt = Chem.GetPeriodicTable()
+
 current_equivalence_levels = ['connectivity', 'relaxed_connectivity', 'nosym', 'symbol', 'symbol2']
 
 class respyte_model:
@@ -209,14 +212,8 @@ class fuzzy_charge_model(point_charge_model):
         elif self.q_core_type == 'valency':
             elem = self.molecules.atom_equiv[charge_equiv_level]['info'][charge_equiv][0]['elem']
             atomic_number = int(list(PeriodicTable.keys()).index(elem) + 1 )
-            if atomic_number < 2+1: 
-                q_core = float(atomic_number)
-            elif 2 <atomic_number < 10+1:
-                q_core = float(atomic_number) - 2
-            elif 10 < atomic_number < 18+1:
-                q_core = float(atomic_number) - 10
-            else:
-                raise NotImplementedError('didnt think too much about how to calculate valency:/')
+            # usint rdkit tool, return valence 
+            q_core = pt.GetDefaultValence(atomic_number)
         else:
             raise NotImplementedError
         return q_core
