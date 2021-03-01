@@ -111,11 +111,14 @@ class ef_target(esp_target):
             '''
             V = []
             for molecule in self.molecules.mols: 
-                residuals = np.zeros((len(molecule.gridxyz)))
+                # residuals = np.zeros((len(molecule.gridxyz)))
+                residuals = []
                 for idx, (gridpt, ef) in enumerate(zip(molecule.gridxyz, molecule.efvals)):
-                    residual = self.field_residual(molecule, gridpt, ef, vals_)
-                    residuals[idx] = residual
-                residuals_list = residuals.tolist()
+                    diff, residual = self.field_residual(molecule, gridpt, ef, vals_)
+                    # residuals[idx] = residual
+                    residuals.append(diff) 
+                # residuals_list = residuals.tolist()
+                residuals_list = np.array(residuals).flatten().tolist() 
                 V += residuals_list
             return np.array(V)
 
@@ -156,7 +159,7 @@ class ef_target(esp_target):
         diff = np.array(ef) - np.array(Ei)
         residual = np.linalg.norm(diff)
         # print(f'ef: {ef}, Ei:{Ei}, residual:{residual:.4f}')
-        return residual 
+        return diff, residual 
     
 implemented_targets = {'esp': esp_target, 
                        'ef' : ef_target,
@@ -303,27 +306,27 @@ class respyte_objective:
         residual = esp - Vi
         return residual
 
-    def field_residual(self, molecule,gridpt, ef, vals_):
-        Ei = 0
-        if self.model.model_type in ['point_charge', 'point_charge_numerical']:
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                Eai = single_pt_chg_field(atom.xyz, q, gridpt)
-                Ei += Eai
-        elif self.model.model_type  == 'fuzzy_charge':
-            for atom in molecule.GetAtoms():
-                qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
+    # def field_residual(self, molecule,gridpt, ef, vals_):
+    #     Ei = 0
+    #     if self.model.model_type in ['point_charge', 'point_charge_numerical']:
+    #         for atom in molecule.GetAtoms():
+    #             qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
+    #             Eai = single_pt_chg_field(atom.xyz, q, gridpt)
+    #             Ei += Eai
+    #     elif self.model.model_type  == 'fuzzy_charge':
+    #         for atom in molecule.GetAtoms():
+    #             qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
+    #             alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
 
-                charge_equiv_level = self.model.parameter_types['charge']
-                equiv = atom.atom_equiv[charge_equiv_level]
-                q_core = self.model.get_q_core_val(charge_equiv_level, equiv)
+    #             charge_equiv_level = self.model.parameter_types['charge']
+    #             equiv = atom.atom_equiv[charge_equiv_level]
+    #             q_core = self.model.get_q_core_val(charge_equiv_level, equiv)
 
-                Eai = single_fuzzy_chg_field(atom.xyz, q=q, q_core=q_core, alpha=alpha, gridpt=gridpt)
-                Ei += Eai
-        diff = np.array(ef) - np.array(Ei)
-        residual = np.linalg.norm(diff)
-        return residual        
+    #             Eai = single_fuzzy_chg_field(atom.xyz, q=q, q_core=q_core, alpha=alpha, gridpt=gridpt)
+    #             Ei += Eai
+    #     diff = np.array(ef) - np.array(Ei)
+    #     residual = np.linalg.norm(diff)
+    #     return residual        
 
     def Full(self):
         '''
