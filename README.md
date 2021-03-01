@@ -10,7 +10,7 @@ A python implementation of open-source version of RESP method
 ## Short description of respyte beta ver.
 The main goals of the reformatting are (1) implementation of better user interface and (2) to support various charge models (fuzzy charge model, virtual site etc.)
 
-Currently added features(2021-03-01): (1) normalization and (2) the usage of electric field term in fitting.
+Newly added features(updated 2021-03-01): (1) normalization and (2) the usage of electric field term in fitting.
 
 ### 1. conda environment and dependent packages 
 Create a new environment and install all dependencies
