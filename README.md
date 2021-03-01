@@ -6,6 +6,8 @@ respyte
 
 Implementation of open-source version of RESP method
 
+**New version of *respyte* can be found in re-formatting branch:) Will be merged to master soon!**
+
 ## Installation
 From a clean Miniconda installation, run the following:
 
