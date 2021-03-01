@@ -1,9 +1,9 @@
 import pytest
 import sys, os
 
-from respyte.parse import *
-from respyte.molecules import *
-from respyte.procedure import *
+from respyte.parse import Input
+from respyte.molecules import respyte_molecules
+from respyte.procedure import resp
 
 orig_path = os.getcwd()
 this_file_folder = os.path.dirname(os.path.realpath(__file__))
@@ -18,8 +18,8 @@ def test_point_charge_fitting():
     molecules.from_input(inp)
 
     inp.procedure = 1
-    objective, outputs, rrmss, vals = resp(molecules, inp.model_type, inp.parameter_types, inp.q_core_type, inp.alpha0,
-            inp.normalize, inp.penalty, inp.procedure, verbose=True)
+    objective, outputs, rrmss = resp(molecules, inp.model_type, inp.parameter_types, inp.q_core_type, inp.alpha0,
+            inp.normalize, inp.targets, inp.convergence_threshold, inp.penalty, inp.procedure, verbose=True)
     assert objective.parm_info == [[0, 'charge', 'connectivity'],
                                    [1, 'charge', 'connectivity'],
                                    [2, 'charge', 'connectivity'],
@@ -32,8 +32,8 @@ def test_point_charge_fitting():
                                                                            0.024659277282952564]]
     
     inp.procedure = 2
-    objective, outputs, rrmss, vals = resp(molecules, inp.model_type, inp.parameter_types, inp.q_core_type, inp.alpha0,
-            inp.normalize, inp.penalty, inp.procedure, verbose=True)
+    objective, outputs, rrmss = resp(molecules, inp.model_type, inp.parameter_types, inp.q_core_type, inp.alpha0,
+            inp.normalize, inp.targets, inp.convergence_threshold, inp.penalty, inp.procedure, verbose=True)
     assert [round(i, 6) for i in objective.parms] == [round(i,6) for i in [0.42155252290088474,
                                                                            0.0372125686491922,
                                                                           -0.6498465415844541,
