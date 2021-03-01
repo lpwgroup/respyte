@@ -66,7 +66,7 @@ parameter_types:
 normalize: False
 
 # q_core_type, alpha0: extra settings for fuzzy charge model
-q_core_type : valency # available types: nuclear_charge, valency, integer or float
+q_core_type : n_outer_elecs # available types: nuclear_charge, valency, n_outer_elecs(number of valence electrons), integer or float
 alpha0 : 3              # a prefactor of alpha value 
 
 # penalty: settings for penalty function 

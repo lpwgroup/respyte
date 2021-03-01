@@ -236,7 +236,7 @@ class fuzzy_charge_model(point_charge_model):
 
         self.__check_input_parameter_types(parameter_types)
 
-        if isinstance(q_core_type, (int, float)) or q_core_type in ['nuclear_charge', 'valency']:
+        if isinstance(q_core_type, (int, float)) or q_core_type in ['nuclear_charge', 'valency', 'n_outer_elecs']:
             self.q_core_type = q_core_type
         else: 
             warn(f'q_core_type {q_core_type} not supported. will set q_core=0 for all atoms by default')
@@ -294,6 +294,11 @@ class fuzzy_charge_model(point_charge_model):
             atomic_number = int(list(PeriodicTable.keys()).index(elem) + 1 )
             # usint rdkit tool, return valence 
             q_core = pt.GetDefaultValence(atomic_number)
+        elif self.q_core_type == 'n_outer_elecs':
+            elem = self.molecules.atom_equiv[charge_equiv_level]['info'][charge_equiv][0]['elem']
+            atomic_number = int(list(PeriodicTable.keys()).index(elem) + 1 )
+            # usint rdkit tool, return the number of valence electrons
+            q_core = pt.GetNOuterElecs(atomic_number)
         else:
             raise NotImplementedError
         return q_core
