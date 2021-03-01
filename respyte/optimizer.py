@@ -48,7 +48,8 @@ class  respyte_optimizer:
             else: 
                 if verbose: 
                     print(' Iter {:d}. norm(dq): {:.2e} X2: {:.2e}'.format(iteration, ndq, Obj['X']))  
+                # self.objective.print_vals(verbose=verbose) ##
                 iteration += 1
                 for idx, val in enumerate(self.objective.parms):
                     self.objective.parms[idx] = val + dq[idx]
-        return outputs, rrmss, vals
+        return outputs, rrmss #, vals

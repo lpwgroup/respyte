@@ -15,6 +15,10 @@ penalty :
     b : 0.1   
     c : 0.001  
 
+targets:
+    - type   : esp
+      weight : 1.0
+      
 procedure : 2  
 
 
