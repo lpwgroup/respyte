@@ -106,7 +106,8 @@ molecules.add_molecule(molecule)
 Model object takes molecules object and build a parameter set, `parms`, which is a list of initial guesses of parameters to be fitted to QM properties. Currently point charge model and fuzzy charge model are implemented. 
 
 #### (3) `objective.py`
-: **Objective object** (1) builds a set of parameters and an objective function of the system from the input molecules object and model object, and (3) calculate the objective function value, gradient and hessian of the objective function at a given point in optimizer, and (4) keep the fitted parameters the information of each parameter into `parms` and  `parm_info`. 
+
+: **Objective object** (1) take a set of parameters to be fitted and fixed parameter information from model object (2) combine target objects and penalty function to build total objective function of the system (3) calculate the objective function, gradient and hessian of the objective function at a given point inside optimizer, and (4) keep the fitted parameters the information of each parameter into `parms` and  `parm_info`. 
 An example of how to build objective object:
 ```
 # create an objective from molecules
@@ -115,6 +116,10 @@ objective = respyte_objective(molecules)
 # add model and build parameter set to be fitted
 parameter_types ={'charge':'connectivity'}
 objective.add_model(model_type='point_charge', parameter_types=parameter_types)
+
+# add targets 
+targets = [{'type': 'esp',  'weight': 1.0}] 
+objective.add_target(targets)
 
 # add penalty function for parameter regularization 
 penalty = {'ptype':'L1', 'a':0.001, 'b':0.1}
@@ -145,19 +150,34 @@ optimizer.run(verbose=True)
 #### (5) `procedure.py`
 It defines a main function called `resp` which runs single-stage or two-stage fitting  procedure. 
 
+- Example 1. Analytic solution of single-stg-fit to ESP
 ```
-#'example 3. analytic solution  of two-stg-fit
+parameter_types = {'charge': 'connectivity'}
+model_type='point_charge'
+penalty =  {'ptype': 'L1', 'a': 0.001, 'b': 0.1}
+# default target is [{'type': 'esp',  'weight': 1.0}], which specifies ESP-only fitting
+resp(molecules, model_type, parameter_types, penalty=penalty, procedure=1)
+```
+- Example 2. Analytic solution of single-stg-fit to **ESP and EF**
+```
+model_type='point_charge'
+parameter_types = {'charge': 'connectivity'}
+penalty =  {'ptype': 'L1', 'a': 0.001, 'b': 0.1}
+targets = [{'type': 'esp',  'weight': 0.5}, {'type': 'ef',  'weight': 0.5}] 
+resp(molecules, model_type, parameter_types, targets=targets, penalty=penalty, procedure=1)
+```
+- Example 3. Analytic solution  of two-stg-fit to ESP
+```
 model_type = 'point_charge'
 parameter_types = {'charge': 'connectivity'}
 penalty =  {'type': 'L1', 'a': 0.001, 'b': 0.1}
 resp(molecules, model_type, parameter_types, penalty=penalty, procedure=2)
 ```
-or for the fuzzy charge model, 
+- Example 4. **Fuzzy charge model**(numerical  solution of single-stg-fit to ESP) 
 ```
-# example 5. numerical  solution of fuzzy charge single-stg-fit
 model_type = 'fuzzy_charge'
 parameter_types = {'charge': 'connectivity', 'alpha': 'symbol'}
-q_core_type = 'valency'
+q_core_type = 'n_outer_elecs'
 alpha0 = 3
 penalty =  {'type': 'L1', 'a': 0.001, 'b': 0.1, 'c':0.1}
 resp(molecules, model_type, parameter_types, q_core_type=q_core_type, alpha0=alpha0, penalty=penalty, procedure=2)
