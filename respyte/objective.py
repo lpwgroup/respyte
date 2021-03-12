@@ -24,45 +24,39 @@ class esp_target:
     def get(self, vals_):
         Answer = {'X':0.0, 'G':np.zeros(len(vals_)), 'H':np.zeros((len(vals_), len(vals_)))}
         
-        def compute(vals_):
-            '''
-            Return a list of residual at a given point, vals_
-            '''
-            V = []
-            for molecule in self.molecules.mols: 
-                residuals = np.zeros((len(molecule.gridxyz)))
+        for molecule in self.molecules.mols: 
+            def compute(vals_):
+                '''
+                Return a list of residual at a given point, vals_
+                '''    
+                V = np.zeros((len(molecule.gridxyz)))
                 for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
                     residual = self.pot_residual(molecule, gridpt, esp, vals_)
-                    residuals[idx] = residual
-                residuals_list = residuals.tolist()
-                V += residuals_list
-            return np.array(V)
+                    V[idx] = residual
+                return V
 
-        V = compute(vals_)
-        Answer['X'] = np.dot(V,V) / (len(V) if self.normalize else 1)
-        
-        dV = np.zeros((len(vals_), len(V)))
-        if self.model.model_type == 'point_charge': 
-            loc = 0
-            for molecule in self.molecules.mols:
+            V = compute(vals_)
+            Answer['X'] += np.dot(V,V) / (len(V) if self.normalize else 1)
+
+            dV = np.zeros((len(vals_), len(V)))
+            if self.model.model_type == 'point_charge': 
                 for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
                     for atom in molecule.GetAtoms():
                         qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
                         vai,  vai_deriv = single_pt_chg_pot(atom.xyz, q, gridpt)
-                        dV[qidx][idx+loc] += -1*vai_deriv
-                loc  += len(molecule.gridxyz)
-        else: 
-            # use a numerical solution of partial differential equations
-            for vidx in range(len(vals_)):
-                dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
+                        dV[qidx][idx] += -1*vai_deriv
+            else: 
+                # use a numerical solution of partial differential equations
+                for vidx in range(len(vals_)):
+                    dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
 
-        for vidx in range(len(vals_)):
-            Answer['G'][vidx] = 2* np.dot(V, dV[vidx,:])  / (len(V) if self.normalize else 1)
-            for vidx2 in range(len(vals_)):
-                Answer['H'][vidx, vidx2] = 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
+            for vidx in range(len(vals_)):
+                Answer['G'][vidx] += 2* np.dot(V, dV[vidx,:])  / (len(V) if self.normalize else 1)
+                for vidx2 in range(len(vals_)):
+                    Answer['H'][vidx, vidx2] += 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
         
         return Answer
-        
+
     def get_val_from_atom(self, atom, param_type, vals_):
         equiv_level = self.model.parameter_types[param_type]
         equiv = atom.atom_equiv[equiv_level]
@@ -105,36 +99,31 @@ class ef_target(esp_target):
     def get(self, vals_):
         Answer = {'X':0.0, 'G':np.zeros(len(vals_)), 'H':np.zeros((len(vals_), len(vals_)))}
 
-        def compute(vals_):
-            '''
-            Return a list of residual at a given point, vals_
-            '''
-            V = []
-            for molecule in self.molecules.mols: 
-                # residuals = np.zeros((len(molecule.gridxyz)))
-                residuals = []
+        for molecule in self.molecules.mols: 
+            def compute(vals_):
+                '''
+                Return a list of residual at a given point, vals_
+                '''    
+                V = []
                 for idx, (gridpt, ef) in enumerate(zip(molecule.gridxyz, molecule.efvals)):
                     diff, residual = self.field_residual(molecule, gridpt, ef, vals_)
-                    # residuals[idx] = residual
-                    residuals.append(diff) 
-                # residuals_list = residuals.tolist()
-                residuals_list = np.array(residuals).flatten().tolist() 
-                V += residuals_list
-            return np.array(V)
+                    V.append(diff) 
+                V = np.array(V).flatten()    
+                return V      
 
-        V = compute(vals_)
-        Answer['X'] = np.dot(V,V)  / (len(V) if self.normalize else 1)
+            V = compute(vals_)
+            Answer['X'] += np.dot(V,V) / (len(V) if self.normalize else 1)                  
 
-        dV = np.zeros((len(vals_), len(V)))
+            dV = np.zeros((len(vals_), len(V)))
 
-        # use a numerical solution of partial differential equations
-        for vidx in range(len(vals_)):
-            dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
+            # use a numerical solution of partial differential equations
+            for vidx in range(len(vals_)):
+                dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
 
-        for vidx in range(len(vals_)):
-            Answer['G'][vidx] = 2* np.dot(V, dV[vidx,:])  / (len(V) if self.normalize else 1)
-            for vidx2 in range(len(vals_)):
-                Answer['H'][vidx, vidx2] = 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
+            for vidx in range(len(vals_)):
+                Answer['G'][vidx] += 2* np.dot(V, dV[vidx,:])  / (len(V) if self.normalize else 1)
+                for vidx2 in range(len(vals_)):
+                    Answer['H'][vidx, vidx2] += 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
         
         return Answer
 
@@ -264,10 +253,10 @@ class respyte_objective:
                 Obj1['G'][vidx] += vlambda
                 Obj1['H'][vidx][lambdaidx] += 1
                 Obj1['H'][lambdaidx][vidx] += 1
-
+            
         Answer = {'X':0.0, 'G':np.zeros(self.np), 'H':np.zeros((self.np, self.np))}
         for i in range(3):
-            Answer[Letters[i]] += Obj0[Letters[i]] + Obj1[Letters[i]]
+            Answer[Letters[i]] = Obj0[Letters[i]] + Obj1[Letters[i]]
 
         return Answer
        
