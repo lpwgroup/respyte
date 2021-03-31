@@ -37,7 +37,7 @@ class Input:
             self.gridinfo = None 
             self.normalize = False
             self.targets = [{'type': 'esp',  'weight': 1.0}]
-            self.convergence_threshold = 1e-8
+            self.convergence_threshold = 1e-5
         else:
             self.readinp(inputFile) 
 
@@ -214,7 +214,7 @@ class Input:
             assert isinstance(convergence_threshold,  (int, float))
             print(f'  * convergence_threshold: {convergence_threshold}')
         else: 
-            convergence_threshold = 1e-8
+            convergence_threshold = 1e-5
             print(f'  * convergence_threshold: {convergence_threshold} (default)')
         self.convergence_threshold = convergence_threshold
 def main():

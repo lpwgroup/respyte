@@ -27,7 +27,7 @@ class  respyte_optimizer:
         assert isinstance(objective,  respyte_objective)
         self.objective  = copy.deepcopy(objective)
 
-    def run(self, threshold=1e-8, verbose=True):
+    def run(self, threshold=1e-5, verbose=True):
         '''
         A main respyte Newton-Raphson  optimizer.
                 Parameters: 

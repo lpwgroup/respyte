@@ -22,7 +22,7 @@ def single_stage_procedure(molecules, model_type, parameter_types, q_core_type, 
 penalty_default = {'ptype':'L1', 'a':0.001, 'b':0.1, 'c':0.1}
 targets_default = [{'type': 'esp',  'weight': 1.0}]
 
-def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, normalize=False, targets=targets_default, threshold=1e-8, penalty=penalty_default,
+def resp(molecules, model_type, parameter_types, q_core_type=None, alpha0=None, normalize=False, targets=targets_default, threshold=1e-5, penalty=penalty_default,
          procedure=1, output_path=None, verbose=True):
     if procedure == 2: 
         print('\n\033[1mRunning two-stage fit\033[0m')
