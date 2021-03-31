@@ -54,7 +54,7 @@ class esp_target:
 
                         charge_equiv_level = self.model.parameter_types['charge']
                         equiv = atom.atom_equiv[charge_equiv_level]
-                        q_core = q_core = self.model.get_q_core_val(charge_equiv_level, equiv) 
+                        q_core = self.model.get_q_core_val(charge_equiv_level, equiv) 
                         dVdq, dVdalpha = self.dVdq_fuzzy(atom.xyz, q, q_core, gridpt, alpha)
                         dV[qidx][idx] += dVdq
                         dV[alpha_idx][idx] += dVdalpha
