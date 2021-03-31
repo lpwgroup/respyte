@@ -231,7 +231,7 @@ class fuzzy_charge_model(point_charge_model):
     def __init__(self, model_type, molecules, parameter_types, q_core_type='nuclear_charge', alpha0=3 ,fix_polar_charges=False, prev_objective=None):
         assert isinstance(molecules, respyte_molecules)
         self.molecules = molecules
-        assert model_type == 'fuzzy_charge'
+        assert model_type in ['fuzzy_charge','fuzzy_charge_numerical']
         self.model_type = model_type
 
         self.__check_input_parameter_types(parameter_types)
