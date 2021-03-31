@@ -12,7 +12,7 @@ bohr2Ang = 0.52918825 # converting Bohr to Angstrom
 # H : a hessian of the objective function 
 Letters = ['X','G','H']
 
-current_model_types = ['point_charge', 'point_charge_numerical', 'fuzzy_charge']
+current_model_types = ['point_charge', 'point_charge_numerical', 'fuzzy_charge', 'fuzzy_charge_numerical']
 
 class esp_target: 
     def __init__(self, molecules, model, normalize):
@@ -43,9 +43,23 @@ class esp_target:
                 for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
                     for atom in molecule.GetAtoms():
                         qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
-                        vai,  vai_deriv = single_pt_chg_pot(atom.xyz, q, gridpt)
-                        dV[qidx][idx] += -1*vai_deriv
-            else: 
+                        dV[qidx][idx] += self.dVdq(atom.xyz, gridpt, q)
+            
+            if self.model.model_type == 'fuzzy_charge':
+                for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
+                    for atom in molecule.GetAtoms():
+                        # dV/dq, dV/dalpha (eqn 29, 34)
+                        qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
+                        alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
+
+                        charge_equiv_level = self.model.parameter_types['charge']
+                        equiv = atom.atom_equiv[charge_equiv_level]
+                        q_core = q_core = self.model.get_q_core_val(charge_equiv_level, equiv) 
+                        dVdq, dVdalpha = self.dVdq_fuzzy(atom.xyz, q, q_core, gridpt, alpha)
+                        dV[qidx][idx] += dVdq
+                        dV[alpha_idx][idx] += dVdalpha
+    
+            else:                 
                 # use a numerical solution of partial differential equations
                 for vidx in range(len(vals_)):
                     dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
@@ -56,6 +70,20 @@ class esp_target:
                     Answer['H'][vidx, vidx2] += 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
         
         return Answer
+
+    def dVdq(self, xyz, gridpt, q):
+        xyz = np.array(xyz) /bohr2Ang
+        gridpt = np.array(gridpt) /bohr2Ang
+        dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))
+        return -1* 1/dist
+
+    def dVdq_fuzzy(self, xyz, q, q_core, gridpt, alpha):
+        xyz = np.array(xyz) /bohr2Ang
+        gridpt = np.array(gridpt) /bohr2Ang
+        dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))  
+        dVdq =  -1* 1/dist * (1-np.exp(-1* alpha*dist))
+        dVdalpha = -1 * (q-q_core) * np.exp(-1* alpha*dist) 
+        return dVdq, dVdalpha
 
     def get_val_from_atom(self, atom, param_type, vals_):
         equiv_level = self.model.parameter_types[param_type]
@@ -78,7 +106,7 @@ class esp_target:
                 qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
                 vai,vai_deriv = single_pt_chg_pot(atom.xyz, q, gridpt)
                 Vi += vai
-        elif self.model.model_type  == 'fuzzy_charge':
+        elif self.model.model_type in ['fuzzy_charge', 'fuzzy_charge_numerical']:
             for atom in molecule.GetAtoms():
                 qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
                 alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
@@ -115,7 +143,6 @@ class ef_target(esp_target):
             Answer['X'] += np.dot(V,V) / (len(V) if self.normalize else 1)                  
 
             dV = np.zeros((len(vals_), len(V)))
-
             # use a numerical solution of partial differential equations
             for vidx in range(len(vals_)):
                 dV[vidx], _ = f12d3p(fdwrap(compute, vals_, vidx), h=0.0001, f0=V) #need to modify h
@@ -134,7 +161,7 @@ class ef_target(esp_target):
                 qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
                 Eai = single_pt_chg_field(atom.xyz, q, gridpt)
                 Ei += Eai
-        elif self.model.model_type  == 'fuzzy_charge':
+        elif self.model.model_type  in ['fuzzy_charge', 'fuzzy_charge_numerical']:
             for atom in molecule.GetAtoms():
                 qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
                 alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
@@ -204,7 +231,7 @@ class respyte_objective:
         if model_type in ['point_charge', 'point_charge_numerical']:
             model = point_charge_model(model_type=model_type, molecules=self.molecules, parameter_types=parameter_types, 
                                         fix_polar_charges=fix_polar_charges, prev_objective=prev_objective)
-        elif model_type == 'fuzzy_charge':
+        elif model_type in ['fuzzy_charge', 'fuzzy_charge_numerical']:
             model = fuzzy_charge_model(model_type=model_type, molecules=self.molecules, parameter_types=parameter_types, 
                                         q_core_type=q_core_type, alpha0=alpha0, fix_polar_charges=fix_polar_charges, prev_objective=prev_objective)
         self.model = copy.deepcopy(model)
@@ -216,7 +243,7 @@ class respyte_objective:
         self.penalty = respyte_penalty(self.molecules, self.model, penalty_function)
     
     def get(self):
-        if self.model.model_type in ['point_charge', 'point_charge_numerical', 'fuzzy_charge']:
+        if self.model.model_type in ['point_charge', 'point_charge_numerical', 'fuzzy_charge', 'fuzzy_charge_numerical']:
             return self.get_charge_model()
         else: 
             raise NotImplementedError
@@ -281,7 +308,7 @@ class respyte_objective:
                 qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
                 vai,vai_deriv = single_pt_chg_pot(atom.xyz, q, gridpt)
                 Vi += vai
-        elif self.model.model_type  == 'fuzzy_charge':
+        elif self.model.model_type in ['fuzzy_charge', 'fuzzy_charge_numerical']:
             for atom in molecule.GetAtoms():
                 qidx, q = self.get_val_from_atom(atom, 'charge', vals_)
                 alpha_idx, alpha = self.get_val_from_atom(atom, 'alpha', vals_)
@@ -395,7 +422,7 @@ class respyte_penalty:
     def get(self, vals_):
         if self.model.model_type in ['point_charge', 'point_charge_numerical']:
             return self.get_point_charge(vals_)
-        elif self.model.model_type == 'fuzzy_charge':
+        elif self.model.model_type  in ['fuzzy_charge', 'fuzzy_charge_numerical']:
             return self.get_fuzzy_charge(vals_)
         else: 
             raise NotImplementedError
