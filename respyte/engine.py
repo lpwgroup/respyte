@@ -32,6 +32,7 @@ psi4_template_head = """memory 12 gb
 molecule meoh {{
 noreorient
 nocom
+symmetry c1
 {chg} {mult}
 """
 psi4_template_tail_gas="""}}
