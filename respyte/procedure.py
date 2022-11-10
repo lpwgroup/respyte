@@ -4,6 +4,7 @@ from warnings import warn
 from respyte.molecules import respyte_molecules
 from respyte.objective import respyte_objective
 from respyte.optimizer import respyte_optimizer
+import scipy.linalg
 
 def single_stage_procedure(molecules, model_type, parameter_types, q_core_type, alpha0, normalize,
                            targets, threshold, penalty, fix_polar_charges=False, prev_objective=None, verbose=True): 
