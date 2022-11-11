@@ -82,7 +82,7 @@ def write_output(objective, output_path):
             abspath = molecule.abspath  
             name =  os.path.splitext(os.path.basename(abspath))[0]
             outfile =  os.path.join(output_path, '%s.txt' %name)  
-            output = objective.print_vals_of_single_molecule(molecule,verbose=False)
+            output, rrms, data = objective.print_vals_of_single_molecule(molecule,verbose=False)
             with open(outfile, 'w') as outf: 
                 for line in output: 
                     outf.write('%s\n'%line)
