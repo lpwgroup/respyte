@@ -39,6 +39,8 @@ class esp_target:
             Answer['X'] += np.dot(V,V) / (len(V) if self.normalize else 1)
 
             dV = np.zeros((len(vals_), len(V)))
+            exp_ki = np.zeros((len(vals_), len(V)))
+            dist_ki = np.zeros((len(vals_), len(V)))
             if self.model.model_type == 'point_charge': 
                 for idx, (gridpt, esp) in enumerate(zip(molecule.gridxyz, molecule.espval)):
                     for atom in molecule.GetAtoms():
@@ -55,10 +57,15 @@ class esp_target:
                         charge_equiv_level = self.model.parameter_types['charge']
                         equiv = atom.atom_equiv[charge_equiv_level]
                         q_core = self.model.get_q_core_val(charge_equiv_level, equiv) 
-                        dVdq, dVdalpha = self.dVdq_fuzzy(atom.xyz, q, q_core, gridpt, alpha)
+                        dVdq, dVdalpha, exponential, dist = self.dVdq_fuzzy(atom.xyz, q, q_core, gridpt, alpha)
                         dV[qidx][idx] += dVdq
                         dV[alpha_idx][idx] += dVdalpha
-    
+
+                        exp_ki[qidx][idx] += exponential
+                        exp_ki[alpha_idx][idx] += exponential
+
+                        dist_ki[qidx][idx] += dist
+                        dist_ki[alpha_idx][idx] += dist
             else:                 
                 # use a numerical solution of partial differential equations
                 for vidx in range(len(vals_)):
@@ -68,7 +75,35 @@ class esp_target:
                 Answer['G'][vidx] += 2* np.dot(V, dV[vidx,:])  / (len(V) if self.normalize else 1)
                 for vidx2 in range(len(vals_)):
                     Answer['H'][vidx, vidx2] += 2 * np.dot(dV[vidx,:],dV[vidx2,:])  / (len(V) if self.normalize else 1)
-        
+
+            # 2022.11 HJ: Hessian diagonal terms 
+            if self.model.model_type in ['fuzzy_charge', 'fuzzy_charge_numerical']:
+                q_alpha_map = dict()
+                for idx, atom in enumerate(molecule.GetAtoms()):
+
+                    equiv_level = self.model.parameter_types['charge']
+                    equiv = atom.atom_equiv[equiv_level]
+                    qidx = self.parm_info.index([equiv, 'charge', equiv_level])
+
+                    equiv_level = self.model.parameter_types['alpha']
+                    equiv = atom.atom_equiv[equiv_level]
+                    alpha_idx = self.parm_info.index([equiv, 'alpha', equiv_level])
+
+                    q_alpha_map[(qidx, alpha_idx)]=idx
+
+                for vidx in range(len(vals_)):
+                    for vidx2 in range(len(vals_)):
+                        equiv, param_type, equiv_level = self.parm_info[vidx]
+                        equiv2, param_type2, equiv_level2 = self.parm_info[vidx2]
+
+                        # 2nd term of eq 36
+                        if  param_type=='charge' and param_type2=='alpha' and (vidx,vidx2) in q_alpha_map.keys():
+                            Answer['H'][vidx, vidx2] += -2* np.dot(V, exp_ki[vidx,:])  / (len(V) if self.normalize else 1)
+
+                        # 2nd term of eq 37
+                        if equiv == equiv2 and param_type == param_type2 == 'alpha':
+                            Answer['H'][vidx, vidx2] += -2* np.einsum('i,i,i', V, dV[vidx,:], dist_ki[vidx,:])  / (len(V) if self.normalize else 1)
+
         return Answer
 
     def dVdq(self, xyz, gridpt, q):
@@ -80,10 +115,11 @@ class esp_target:
     def dVdq_fuzzy(self, xyz, q, q_core, gridpt, alpha):
         xyz = np.array(xyz) /bohr2Ang
         gridpt = np.array(gridpt) /bohr2Ang
-        dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt))  
-        dVdq =  -1* 1/dist * (1-np.exp(-1* alpha*dist))
-        dVdalpha = -1 * (q-q_core) * np.exp(-1* alpha*dist) 
-        return dVdq, dVdalpha
+        dist = np.sqrt(np.dot(xyz-gridpt, xyz-gridpt)) 
+        exponential =  np.exp(-1* alpha*dist)
+        dVdq = -1 * 1/dist * (1-exponential)
+        dVdalpha = -1 * (q-q_core) * exponential 
+        return dVdq, dVdalpha, exponential, dist
 
     def get_val_from_atom(self, atom, param_type, vals_):
         equiv_level = self.model.parameter_types[param_type]
