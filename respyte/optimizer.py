@@ -1,5 +1,5 @@
 import numpy as np
-import scipy as sci
+import scipy.linalg
 import copy
 from respyte.objective import respyte_objective
 
@@ -38,7 +38,7 @@ class  respyte_optimizer:
         iteration = 0
         while converged == False:
             Obj = self.objective.Full()
-            dq  = -  sci.linalg.solve(Obj['H'],  Obj['G'])
+            dq  = -  scipy.linalg.solve(Obj['H'],  Obj['G'])
             # ndq = step size
             ndq  = np.linalg.norm(dq)
             if ndq < threshold: 
